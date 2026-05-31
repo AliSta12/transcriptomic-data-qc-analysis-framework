@@ -34,3 +34,4 @@ outputs/visualizations/*.jpg
 # Logs
 
 *.log
+.Rhistory
