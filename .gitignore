@@ -1,0 +1,36 @@
+# Python
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+
+venv/
+.env/
+.venv/
+
+# Jupyter
+
+.ipynb_checkpoints/
+
+# OS files
+
+.DS_Store
+Thumbs.db
+
+# Streamlit
+
+.streamlit/secrets.toml
+
+# Generated outputs
+
+outputs/reports/*.pdf
+outputs/tables/*.csv
+outputs/visualizations/*.png
+outputs/visualizations/*.jpg
+
+# Logs
+
+*.log
