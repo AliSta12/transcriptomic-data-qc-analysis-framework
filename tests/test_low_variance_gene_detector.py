@@ -6,7 +6,7 @@ from src.data_cleaner.low_variance_gene_detector import (
 )
 
 
-def test_removes_low_variance_gene():
+def test_detects_but_does_not_remove_low_variance_gene():
 
     df = pd.DataFrame(
         {
@@ -20,8 +20,11 @@ def test_removes_low_variance_gene():
 
     result = detector.apply_rules(df)
 
-    assert "LOW_VAR" in result.removed_genes
-    assert "LOW_VAR" not in result.cleaned_dataframe.columns
+    assert "LOW_VAR" not in result.removed_genes
+    assert result.removed_gene_count == 0
+    assert "LOW_VAR" in result.cleaned_dataframe.columns
+    assert result.summary_dataframe.loc[0, "gene"] == "LOW_VAR"
+    assert result.summary_dataframe.loc[0, "status"] == "WARNING"
 
 
 def test_keeps_high_variance_gene():
@@ -59,7 +62,8 @@ def test_logs_removed_gene():
 
     assert len(audit_df) == 1
     assert audit_df.loc[0, "status"] == "WARNING"
-    assert audit_df.loc[0, "decision"] == "removed"
+    assert audit_df.loc[0, "decision"] == "reported"
+    assert audit_df.loc[0, "action"] == "Detect Low Variance Gene"
 
 
 def test_requires_sample_id_column():

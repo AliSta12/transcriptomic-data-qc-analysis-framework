@@ -61,27 +61,24 @@ class LowVarianceGeneDetector:
                         "reason": reason,
                     }
                 )
-
+                
                 if audit_logger:
                     audit_logger.log(
                         module="Low Variance Gene Detection",
-                        action="Remove Low Variance Gene",
+                        action="Detect Low Variance Gene",
                         target=gene,
                         old_value=f"variance={variance}",
-                        new_value="removed",
-                        rule_applied="remove_low_variance_genes",
-                        decision="removed",
+                        new_value="not_removed",
+                        rule_applied="detect_low_variance_genes",
+                        decision="reported",
                         status="WARNING",
                         reason=reason,
                     )
 
-        if removed_genes:
-            cleaned_df = cleaned_df.drop(columns=removed_genes)
-
         return LowVarianceGeneDetectionResult(
             cleaned_dataframe=cleaned_df,
-            removed_genes=removed_genes,
-            removed_gene_count=len(removed_genes),
+            removed_genes=[],
+            removed_gene_count=0,
             variance_threshold=self.variance_threshold,
             summary_dataframe=pd.DataFrame(summary_rows),
         )
