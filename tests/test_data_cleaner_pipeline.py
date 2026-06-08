@@ -66,7 +66,16 @@ def test_pipeline_returns_clean_metadata():
         metadata_df,
     )
 
-    assert result.clean_metadata.equals(metadata_df)
+    assert result.clean_metadata.columns.tolist() == [
+        "sample_id",
+        "group",
+        "dataset",
+    ]
+
+    assert result.clean_metadata["dataset"].tolist() == [
+        "unknown",
+        "unknown",
+    ]
 
 
 def test_pipeline_generates_reports():
@@ -95,4 +104,5 @@ def test_pipeline_generates_reports():
     assert not result.harmonization_report.empty
     assert not result.data_quality_report.empty
     assert not result.data_readiness_report.empty
+
 

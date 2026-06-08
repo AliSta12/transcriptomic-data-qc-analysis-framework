@@ -12,7 +12,7 @@ from src.data_cleaner.low_variance_gene_detector import LowVarianceGeneDetector
 from src.reporting.harmonization_report import HarmonizationReport
 from src.reporting.data_quality_report import DataQualityReport
 from src.reporting.data_readiness_report import DataReadinessReport
-
+from src.data_cleaner.metadata_harmonizer import MetadataHarmonizer
 
 @dataclass
 class DataCleanerPipelineResult:
@@ -62,6 +62,11 @@ class DataCleanerPipeline:
         expression_df,
         detection_result.orientation,
         )
+        
+        metadata_harmonizer = MetadataHarmonizer()
+        clean_metadata = metadata_harmonizer.harmonize_metadata(
+            metadata_df
+        )
 
         # 3. Harmonization report
         harmonization_report = HarmonizationReport()
@@ -99,7 +104,7 @@ class DataCleanerPipeline:
         metadata_checker = MetadataConsistencyChecker()
         metadata_result = metadata_checker.check(
             current_df,
-            metadata_df,
+            clean_metadata,
             self.audit_logger,
         )
 
@@ -212,7 +217,7 @@ class DataCleanerPipeline:
 
         return DataCleanerPipelineResult(
             cleaned_expression_matrix=current_df,
-            clean_metadata=metadata_df.copy(),
+            clean_metadata=clean_metadata,
             audit_log=self.audit_logger.to_dataframe(),
             harmonization_report=harmonization_report.to_dataframe(),
             data_quality_report=quality_df,
