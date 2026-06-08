@@ -20,12 +20,14 @@ def test_variable_gene_analysis_generates_top_gene_tables(tmp_path):
 
     assert result.top_50_genes.iloc[0]["gene"] == "GENE_HIGH"
     assert result.top_100_genes.iloc[0]["gene"] == "GENE_HIGH"
+    assert result.barplot_path.endswith("top_variable_genes_barplot.png")
     assert "variance" in result.top_50_genes.columns
     assert result.top_50_path.endswith("top_50_variable_genes.csv")
     assert result.top_100_path.endswith("top_100_variable_genes.csv")
 
     assert (tmp_path / "top_50_variable_genes.csv").exists()
     assert (tmp_path / "top_100_variable_genes.csv").exists()
+    assert (tmp_path / "top_variable_genes_barplot.png").exists()
 
 
 def test_variable_gene_analysis_requires_sample_id_column(tmp_path):

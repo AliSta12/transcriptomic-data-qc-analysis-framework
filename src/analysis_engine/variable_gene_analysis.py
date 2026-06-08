@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import pandas as pd
 
 
@@ -10,6 +11,7 @@ class VariableGeneAnalysisResult:
     top_100_genes: pd.DataFrame
     top_50_path: str
     top_100_path: str
+    barplot_path: str
     summary_dataframe: pd.DataFrame
 
 
@@ -53,9 +55,28 @@ class VariableGeneAnalysis:
         top_50_path = output_dir / "top_50_variable_genes.csv"
         top_100_path = output_dir / "top_100_variable_genes.csv"
 
+        barplot_path = output_dir / "top_variable_genes_barplot.png"
+
         top_50_genes.to_csv(top_50_path, index=False)
         top_100_genes.to_csv(top_100_path, index=False)
 
+        plt.figure(figsize=(12, 6))
+
+        plt.bar(
+            top_50_genes["gene"],
+            top_50_genes["variance"],
+        )
+
+        plt.title("Top 50 Variable Genes")
+        plt.xlabel("Gene")
+        plt.ylabel("Variance")
+
+        plt.xticks(rotation=90)
+
+        plt.tight_layout()
+        plt.savefig(barplot_path)
+        plt.close()
+        
         summary_dataframe = pd.DataFrame(
             [
                 {
@@ -86,6 +107,7 @@ class VariableGeneAnalysis:
             top_100_genes=top_100_genes,
             top_50_path=str(top_50_path),
             top_100_path=str(top_100_path),
+            barplot_path=str(barplot_path),
             summary_dataframe=summary_dataframe,
         )
 
