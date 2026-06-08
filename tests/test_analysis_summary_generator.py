@@ -47,6 +47,17 @@ def test_analysis_summary_generator_creates_outputs(tmp_path):
         tmp_path / "analysis_summary.md"
     ).exists()
 
+    markdown_content = (
+        tmp_path / "analysis_summary.md"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+    assert "# Transcriptomic Analysis Summary" in markdown_content
+    assert "## Dataset Overview" in markdown_content
+    assert "| Metric | Value |" in markdown_content
+    assert "sample_count" in markdown_content
+    assert "gene_count" in markdown_content
 
 def test_analysis_summary_generator_requires_input_data():
     try:

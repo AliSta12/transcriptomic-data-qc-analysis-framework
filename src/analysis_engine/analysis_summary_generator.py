@@ -86,20 +86,73 @@ class AnalysisSummaryGenerator:
     ) -> str:
 
         clean_dataframe = dataframe.copy()
-
-        clean_dataframe = clean_dataframe.dropna(
-            axis=1,
-            how="all",
-        )
-
         clean_dataframe = clean_dataframe.fillna("")
 
-        header = "| " + " | ".join(clean_dataframe.columns) + " |"
-        separator = "| " + " | ".join(["---"] * len(clean_dataframe.columns)) + " |"
+        sections = [
+            "# Transcriptomic Analysis Summary",
+            "",
+            "## Dataset Overview",
+            "",
+        ]
+
+        metric_rows = clean_dataframe[
+            (clean_dataframe.get("metric", "") != "") &
+            (clean_dataframe.get("value", "") != "")
+        ]
+
+        sections.extend(
+            self._records_to_markdown_table(
+                metric_rows[["metric", "value"]].rename(
+                    columns={
+                        "metric": "Metric",
+                        "value": "Value",
+                    }
+                )
+            )
+        )
+
+        if "group" in clean_dataframe.columns and "sample_count" in clean_dataframe.columns:
+            class_rows = clean_dataframe[
+                (clean_dataframe["group"] != "") &
+                (clean_dataframe["sample_count"] != "")
+            ]
+
+            if not class_rows.empty:
+                sections.extend(
+                    [
+                        "",
+                        "## Class Distribution",
+                        "",
+                    ]
+                )
+
+                sections.extend(
+                    self._records_to_markdown_table(
+                        class_rows[["group", "sample_count"]].rename(
+                            columns={
+                                "group": "Group",
+                                "sample_count": "Sample Count",
+                            }
+                        )
+                    )
+                )
+
+        return "\n".join(sections)
+    
+    def _records_to_markdown_table(
+        self,
+        dataframe: pd.DataFrame,
+    ) -> list[str]:
+
+        if dataframe.empty:
+            return []
+
+        header = "| " + " | ".join(dataframe.columns) + " |"
+        separator = "| " + " | ".join(["---"] * len(dataframe.columns)) + " |"
 
         rows = [
             "| " + " | ".join(str(value) for value in row) + " |"
-            for row in clean_dataframe.to_numpy()
+            for row in dataframe.to_numpy()
         ]
 
-        return "\n".join([header, separator] + rows)
+        return [header, separator] + rows
