@@ -8,10 +8,14 @@ class MetadataHarmonizer:
     Required internal format:
     - sample_id
     - group
+    - dataset
     """
 
     @staticmethod
-    def harmonize_metadata(metadata_df: pd.DataFrame) -> pd.DataFrame:
+    def harmonize_metadata(
+        metadata_df: pd.DataFrame,
+        dataset_name: str = "unknown",
+    ) -> pd.DataFrame:
         harmonized = metadata_df.copy()
 
         if "sample_id" not in harmonized.columns:
@@ -28,5 +32,8 @@ class MetadataHarmonizer:
 
         if "group" not in harmonized.columns:
             raise ValueError("Metadata must contain or allow creation of 'group' column.")
+
+        if "dataset" not in harmonized.columns:
+            harmonized["dataset"] = dataset_name
 
         return harmonized

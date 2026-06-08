@@ -11,11 +11,15 @@ def test_metadata_harmonizer_renames_pancan_columns():
         }
     )
 
-    result = MetadataHarmonizer.harmonize_metadata(metadata_df)
+    result = MetadataHarmonizer.harmonize_metadata(
+        metadata_df,
+        dataset_name="PANCAN",
+    )
 
-    assert result.columns.tolist() == ["sample_id", "group"]
+    assert result.columns.tolist() == ["sample_id", "group", "dataset"]
     assert result["sample_id"].tolist() == ["sample_0", "sample_1"]
     assert result["group"].tolist() == ["BRCA", "LUAD"]
+    assert result["dataset"].tolist() == ["PANCAN", "PANCAN"]
 
 
 def test_metadata_harmonizer_preserves_standard_columns():
@@ -23,12 +27,13 @@ def test_metadata_harmonizer_preserves_standard_columns():
         {
             "sample_id": ["S1", "S2"],
             "group": ["control", "tumor"],
+            "dataset": ["GEO", "GEO"],
         }
     )
 
     result = MetadataHarmonizer.harmonize_metadata(metadata_df)
 
-    assert result.columns.tolist() == ["sample_id", "group"]
+    assert result.columns.tolist() == ["sample_id", "group", "dataset"]
 
 
 def test_metadata_harmonizer_requires_group_column():
