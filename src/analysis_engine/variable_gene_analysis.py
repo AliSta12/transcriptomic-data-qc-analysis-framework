@@ -39,9 +39,11 @@ class VariableGeneAnalysis:
 
         gene_variances = expression_values.var(axis=0)
 
+        variable_genes_df = gene_variances.reset_index()
+        variable_genes_df.columns = ["gene", "variance"]
+
         variable_genes_df = (
-            gene_variances.reset_index()
-            .rename(columns={"index": "gene", 0: "variance"})
+            variable_genes_df
             .sort_values(by="variance", ascending=False)
             .reset_index(drop=True)
         )
