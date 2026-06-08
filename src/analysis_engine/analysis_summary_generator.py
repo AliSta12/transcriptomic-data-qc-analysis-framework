@@ -85,12 +85,21 @@ class AnalysisSummaryGenerator:
         dataframe: pd.DataFrame,
     ) -> str:
 
-        header = "| " + " | ".join(dataframe.columns) + " |"
-        separator = "| " + " | ".join(["---"] * len(dataframe.columns)) + " |"
+        clean_dataframe = dataframe.copy()
+
+        clean_dataframe = clean_dataframe.dropna(
+            axis=1,
+            how="all",
+        )
+
+        clean_dataframe = clean_dataframe.fillna("")
+
+        header = "| " + " | ".join(clean_dataframe.columns) + " |"
+        separator = "| " + " | ".join(["---"] * len(clean_dataframe.columns)) + " |"
 
         rows = [
             "| " + " | ".join(str(value) for value in row) + " |"
-            for row in dataframe.to_numpy()
+            for row in clean_dataframe.to_numpy()
         ]
 
         return "\n".join([header, separator] + rows)
