@@ -49,8 +49,8 @@ class AnalysisSummaryGenerator:
             index=False,
         )
 
-        markdown_content = self._dataframe_to_markdown(
-            summary_dataframe
+        markdown_content = self._summary_dataframes_to_markdown(
+            summary_dataframes
         )
 
         markdown_path.write_text(
@@ -80,65 +80,67 @@ class AnalysisSummaryGenerator:
                     "Summary dataframes cannot be empty."
                 )
     
-    def _dataframe_to_markdown(
+    def _summary_dataframes_to_markdown(
         self,
-        dataframe: pd.DataFrame,
+        summary_dataframes: list[pd.DataFrame],
     ) -> str:
 
-        clean_dataframe = dataframe.copy()
-        clean_dataframe = clean_dataframe.fillna("")
+        section_names = [
+            "Dataset Overview",
+            "Class Distribution",
+            "Variable Gene Analysis",
+            "PCA Analysis",
+            "Heatmap",
+            "Sample Clustering",
+        ]
 
         sections = [
             "# Transcriptomic Analysis Summary",
             "",
-            "## Dataset Overview",
-            "",
         ]
 
-        metric_rows = clean_dataframe[
-            (clean_dataframe.get("metric", "") != "") &
-            (clean_dataframe.get("value", "") != "")
-        ]
+        for index, dataframe in enumerate(summary_dataframes):
+            section_name = (
+                section_names[index]
+                if index < len(section_names)
+                else f"Analysis Section {index + 1}"
+            )
 
-        sections.extend(
-            self._records_to_markdown_table(
-                metric_rows[["metric", "value"]].rename(
-                    columns={
-                        "metric": "Metric",
-                        "value": "Value",
-                    }
+            clean_dataframe = dataframe.copy()
+            clean_dataframe = clean_dataframe.fillna("")
+
+            sections.extend(
+                [
+                    f"## {section_name}",
+                    "",
+                ]
+            )
+
+            sections.extend(
+                self._records_to_markdown_table(
+                    self._format_dataframe_columns(clean_dataframe)
                 )
             )
-        )
 
-        if "group" in clean_dataframe.columns and "sample_count" in clean_dataframe.columns:
-            class_rows = clean_dataframe[
-                (clean_dataframe["group"] != "") &
-                (clean_dataframe["sample_count"] != "")
-            ]
+            sections.append("")
 
-            if not class_rows.empty:
-                sections.extend(
-                    [
-                        "",
-                        "## Class Distribution",
-                        "",
-                    ]
-                )
-
-                sections.extend(
-                    self._records_to_markdown_table(
-                        class_rows[["group", "sample_count"]].rename(
-                            columns={
-                                "group": "Group",
-                                "sample_count": "Sample Count",
-                            }
-                        )
-                    )
-                )
-
-        return "\n".join(sections)
+        return "\n".join(sections).strip()
     
+    def _format_dataframe_columns(
+        self,
+        dataframe: pd.DataFrame,
+    ) -> pd.DataFrame:
+
+        return dataframe.rename(
+            columns={
+                "metric": "Metric",
+                "value": "Value",
+                "group": "Group",
+                "sample_count": "Sample Count",
+                "gene_count": "Gene Count",
+                "clustering_method": "Clustering Method",
+            }
+        )
     def _records_to_markdown_table(
         self,
         dataframe: pd.DataFrame,
