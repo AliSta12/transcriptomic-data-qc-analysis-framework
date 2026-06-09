@@ -194,7 +194,7 @@ class DataCleanerPipeline:
             ),
             metric=str(low_variance_result.removed_gene_count),
             threshold=f"variance < {low_variance_result.variance_threshold}",
-            details="Low variance genes were removed from analytical dataset.",
+            details="Low variance genes were detected and reported.",
         )
 
         quality_df = quality_report.to_dataframe()

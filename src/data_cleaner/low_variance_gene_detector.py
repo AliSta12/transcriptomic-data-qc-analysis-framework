@@ -15,10 +15,10 @@ class LowVarianceGeneDetectionResult:
 
 class LowVarianceGeneDetector:
     """
-    Detects and removes genes with very low expression variance.
+    Detects genes with very low expression variance.
 
     MVP rule:
-    - variance < 0.01 -> remove
+    - variance < 0.01 -> report
     - status: WARNING
     """
 
@@ -56,7 +56,7 @@ class LowVarianceGeneDetector:
                         "gene": gene,
                         "variance": variance,
                         "variance_threshold": self.variance_threshold,
-                        "decision": "removed",
+                        "decision": "reported",
                         "status": "WARNING",
                         "reason": reason,
                     }
