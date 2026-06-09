@@ -1,3 +1,5 @@
+from src.reporting.missing_data_plot import MissingDataPlot
+from src.reporting.qc_status_summary_plot import QCStatusSummaryPlot
 from dataclasses import dataclass
 import pandas as pd
 
@@ -23,6 +25,8 @@ class DataCleanerPipelineResult:
     data_quality_report: pd.DataFrame
     data_readiness_report: pd.DataFrame
     final_status: str
+    missing_data_plot_path: str
+    qc_status_summary_plot_path: str
 
 
 class DataCleanerPipeline:
@@ -49,6 +53,7 @@ class DataCleanerPipeline:
         self,
         expression_df: pd.DataFrame,
         metadata_df: pd.DataFrame,
+        output_directory: str = "outputs/data_cleaner",
     ) -> DataCleanerPipelineResult:
 
         # 1. Detect expression matrix orientation
@@ -198,7 +203,15 @@ class DataCleanerPipeline:
         )
 
         quality_df = quality_report.to_dataframe()
+        missing_data_plot = MissingDataPlot().generate(
+            gene_missing_summary=missing_result.gene_missing_summary,
+            output_directory=output_directory,
+        )
 
+        qc_status_summary_plot = QCStatusSummaryPlot().generate(
+            data_quality_report=quality_df,
+            output_directory=output_directory,
+        )
         # 10. Data readiness report
         pass_count = int((quality_df["status"] == "PASS").sum())
         warning_count = int((quality_df["status"] == "WARNING").sum())
@@ -223,4 +236,6 @@ class DataCleanerPipeline:
             data_quality_report=quality_df,
             data_readiness_report=readiness_df,
             final_status=final_status,
+            missing_data_plot_path=missing_data_plot.plot_path,
+            qc_status_summary_plot_path=qc_status_summary_plot.plot_path,
         )
