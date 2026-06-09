@@ -1,3 +1,4 @@
+from src.analysis_engine.analysis_engine_pipeline import AnalysisEnginePipeline
 from pathlib import Path
 
 import pandas as pd
@@ -108,3 +109,72 @@ if "cleaner_result" in st.session_state:
 
     st.subheader("Clean metadata preview")
     st.dataframe(result.clean_metadata.head())
+if "cleaner_result" in st.session_state:
+
+    result = st.session_state["cleaner_result"]
+
+    st.header("4. Analysis Engine")
+
+    if st.button("Run Analysis Engine"):
+
+        try:
+
+            output_directory = "outputs/streamlit_demo"
+
+            analysis_result = AnalysisEnginePipeline().run(
+                expression_df=result.cleaned_expression_matrix,
+                metadata_df=result.clean_metadata,
+                output_directory=output_directory,
+            )
+
+            st.session_state["analysis_result"] = analysis_result
+
+            st.success(
+                "Analysis Engine finished successfully."
+            )
+
+        except Exception as error:
+            st.error("Analysis Engine failed.")
+            st.exception(error)
+
+
+if "analysis_result" in st.session_state:
+
+    analysis = st.session_state["analysis_result"]
+
+    st.header("5. Analysis Results")
+
+    st.subheader("Dataset Overview")
+    st.dataframe(
+        analysis.dataset_overview.summary_dataframe
+    )
+
+    st.subheader("Class Distribution")
+    st.image(
+        analysis.class_distribution.plot_path
+    )
+
+    st.subheader("PCA")
+    st.image(
+        analysis.pca_analysis.plot_path
+    )
+
+    st.subheader("Top Variable Genes")
+    st.image(
+        analysis.variable_gene_analysis.barplot_path
+    )
+
+    st.subheader("Heatmap")
+    st.image(
+        analysis.heatmap.plot_path
+    )
+
+    st.subheader("Sample Clustering")
+    st.image(
+        analysis.sample_clustering.plot_path
+    )
+
+    st.subheader("Analysis Summary")
+    st.dataframe(
+        analysis.analysis_summary.summary_dataframe
+    )
