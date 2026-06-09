@@ -35,3 +35,16 @@ outputs/visualizations/*.jpg
 
 *.log
 .Rhistory
+# Local datasets generated during development
+
+data/raw/*
+data/processed/*
+
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Local analysis outputs
+
+outputs/geo_gse15852_demo/
+outputs/pancan_demo/
+outputs/streamlit_demo/
