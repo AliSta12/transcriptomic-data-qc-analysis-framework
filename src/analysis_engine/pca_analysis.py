@@ -70,9 +70,11 @@ class PCAAnalysis:
 
         plot_path = output_dir / "pca_plot.png"
 
-        plt.figure(figsize=(8, 6))
+        total_samples = len(pca_dataframe)
 
-        for group in pca_dataframe["group"].unique():
+        plt.figure(figsize=(10, 7))
+
+        for group in pca_dataframe["group"].dropna().unique():
             group_data = pca_dataframe[
                 pca_dataframe["group"] == group
             ]
@@ -80,20 +82,33 @@ class PCAAnalysis:
             plt.scatter(
                 group_data["PC1"],
                 group_data["PC2"],
-                label=group,
+                s=70,
+                alpha=0.8,
+                label=f"{group} (n={len(group_data)})",
             )
 
-        plt.title("PCA Plot")
+        plt.title(
+            f"PCA of Samples by Group (n={total_samples})"
+        )
         plt.xlabel(
-            f"PC1 ({pca.explained_variance_ratio_[0] * 100:.1f}% variance)"
+            f"PC1 ({pca.explained_variance_ratio_[0] * 100:.1f}% explained variance)"
         )
         plt.ylabel(
-            f"PC2 ({pca.explained_variance_ratio_[1] * 100:.1f}% variance)"
+            f"PC2 ({pca.explained_variance_ratio_[1] * 100:.1f}% explained variance)"
         )
 
-        plt.legend()
+        plt.legend(
+            title="Group",
+            loc="best",
+            fontsize=9,
+        )
+
         plt.tight_layout()
-        plt.savefig(plot_path)
+        plt.savefig(
+            plot_path,
+            dpi=300,
+            bbox_inches="tight",
+        )
         plt.close()
 
         summary_dataframe = pd.DataFrame(
