@@ -39,18 +39,33 @@ class QCStatusSummaryPlot:
             )
         )
 
-        plt.figure(figsize=(8, 5))
-        plt.bar(
+        plt.figure(figsize=(9, 5.5))
+        bars = plt.bar(
             status_counts.index,
             status_counts.values,
         )
+
+        for bar in bars:
+            height = bar.get_height()
+            plt.text(
+                bar.get_x() + bar.get_width() / 2,
+                height,
+                int(height),
+                ha="center",
+                va="bottom",
+                fontsize=10,
+            )
+
+        max_count = status_counts.max()
+        upper_limit = max_count * 1.20 if max_count > 0 else 1
+        plt.ylim(0, upper_limit)
 
         plt.title("QC Status Summary")
         plt.xlabel("QC Status")
         plt.ylabel("Number of Checks")
         plt.xticks(rotation=30)
         plt.tight_layout()
-        plt.savefig(plot_path)
+        plt.savefig(plot_path, dpi=300, bbox_inches="tight")
         plt.close()
 
         return QCStatusSummaryPlotResult(
