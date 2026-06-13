@@ -42,16 +42,46 @@ class ClassDistributionAnalysis:
 
         plot_path = output_dir / "class_distribution.png"
 
-        plt.figure(figsize=(8, 5))
-        plt.bar(
-            group_distribution.keys(),
-            group_distribution.values(),
+        groups = list(group_distribution.keys())
+        counts = list(group_distribution.values())
+        total_samples = sum(counts)
+
+        plt.figure(figsize=(9, 6))
+
+        bars = plt.bar(
+            groups,
+            counts,
         )
-        plt.title("Class Distribution")
+
+        plt.title(
+            f"Class Distribution (n={total_samples})"
+        )
         plt.xlabel("Group")
         plt.ylabel("Sample Count")
+
+        for bar, count in zip(bars, counts):
+            percentage = (
+                count / total_samples * 100
+                if total_samples > 0
+                else 0
+            )
+
+            plt.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height(),
+                f"{count}\n({percentage:.1f}%)",
+                ha="center",
+                va="bottom",
+                fontsize=9,
+            )
+
+        plt.xticks(rotation=30, ha="right")
         plt.tight_layout()
-        plt.savefig(plot_path)
+        plt.savefig(
+            plot_path,
+            dpi=300,
+            bbox_inches="tight",
+        )
         plt.close()
 
         return ClassDistributionResult(
