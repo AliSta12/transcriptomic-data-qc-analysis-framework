@@ -62,21 +62,20 @@ class VariableGeneAnalysis:
         top_50_genes.to_csv(top_50_path, index=False)
         top_100_genes.to_csv(top_100_path, index=False)
 
-        plt.figure(figsize=(12, 6))
+        plt.figure(figsize=(14, 7))
 
         plt.bar(
             top_50_genes["gene"],
             top_50_genes["variance"],
         )
 
-        plt.title("Top 50 Variable Genes")
+        plt.title("Top 50 Most Variable Genes (Exploratory Ranking)")
         plt.xlabel("Gene")
         plt.ylabel("Variance")
-
-        plt.xticks(rotation=90)
+        plt.xticks(rotation=90, fontsize=8)
 
         plt.tight_layout()
-        plt.savefig(barplot_path)
+        plt.savefig(barplot_path, dpi=300, bbox_inches="tight")
         plt.close()
         
         summary_dataframe = pd.DataFrame(
