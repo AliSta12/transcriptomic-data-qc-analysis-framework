@@ -40,6 +40,23 @@ class FinalAnalysisReportGenerator:
         )
         canvas.restoreState() 
 
+    def _get_metric_value(
+        self,
+        dataframe: pd.DataFrame,
+        metric_name: str,
+        default: str = "N/A",
+    ) -> str:
+        matching_rows = dataframe[
+            dataframe["metric"] == metric_name
+        ]
+
+        if matching_rows.empty:
+            return default
+
+        return self._format_table_value(
+            matching_rows.iloc[0]["value"]
+        )
+    
     def generate(
         self,
         cleaner_result,
@@ -64,13 +81,64 @@ class FinalAnalysisReportGenerator:
 
         styles = getSampleStyleSheet()
         story = []
+        
+        dataset_overview = analysis_result.dataset_overview.summary_dataframe
 
-        story.append(Paragraph("Transcriptomic Data QC & Analysis Framework", styles["Title"]))
-        story.append(Spacer(1, 12))
+        sample_count = self._get_metric_value(
+            dataset_overview,
+            "sample_count",
+        )
+        gene_count = self._get_metric_value(
+            dataset_overview,
+            "gene_count",
+        )
+        group_count = self._get_metric_value(
+            dataset_overview,
+            "group_count",
+        )
+        analysis_date = datetime.now().strftime("%Y-%m-%d %H:%M")
+        story.append(
+            Paragraph(
+                "Transcriptomic Data QC & Analysis Framework",
+                styles["Title"],
+            )
+        )
+        story.append(Spacer(1, 18))
 
-        story.append(Paragraph("Final Analysis Report", styles["Heading1"]))
-        story.append(Paragraph(f"Dataset: {dataset_name}", styles["Normal"]))
-        story.append(Paragraph(f"Analysis date: {datetime.now().strftime('%Y-%m-%d %H:%M')}", styles["Normal"]))
+        story.append(
+            Paragraph(
+                "Final Analysis Report",
+                styles["Heading1"],
+            )
+        )
+        story.append(Spacer(1, 8))
+
+        title_table_data = [
+            ["Dataset", dataset_name],
+            ["Samples", sample_count],
+            ["Genes", gene_count],
+            ["Groups", group_count],
+            ["Data readiness", cleaner_result.final_status],
+            ["Analysis date", analysis_date],
+        ]
+
+        title_table = Table(
+            title_table_data,
+            colWidths=[120, 260],
+        )
+        title_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (0, -1), colors.lightgrey),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]
+            )
+        )
+
+        story.append(title_table)
         story.append(Spacer(1, 18))
 
         self._add_section(
