@@ -41,6 +41,14 @@ def read_uploaded_file(uploaded_file) -> pd.DataFrame:
 
 st.header("1. Upload input files")
 
+st.info(
+    "Upload a gene expression matrix and metadata file. "
+    "Metadata must contain sample_id and group columns. "
+    "Supported formats: CSV, TSV and XLSX. "
+    "This app works with processed expression matrices, not FASTQ or BAM files. "
+    "After harmonization, the internal data format is sample × gene."
+)
+
 expression_file = st.file_uploader(
     "Upload expression matrix",
     type=["csv", "tsv", "xlsx"],
