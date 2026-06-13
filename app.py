@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 
 from src.data_cleaner.data_cleaner_pipeline import DataCleanerPipeline
-
+from src.reporting.final_analysis_report_generator import FinalAnalysisReportGenerator
 
 st.set_page_config(
     page_title="Transcriptomic Data QC & Analysis Framework",
@@ -178,3 +178,35 @@ if "analysis_result" in st.session_state:
     st.dataframe(
         analysis.analysis_summary.summary_dataframe
     )
+    st.header("6. Final PDF Report")
+
+    if st.button("Generate final PDF report"):
+        try:
+
+            report_result = FinalAnalysisReportGenerator().generate(
+                cleaner_result=st.session_state["cleaner_result"],
+                analysis_result=st.session_state["analysis_result"],
+                dataset_name=expression_file.name,
+                output_directory="outputs/streamlit_demo",
+            )
+
+            st.success(
+                "Final PDF report generated successfully."
+            )
+
+            with open(report_result.pdf_path, "rb") as pdf_file:
+
+                st.download_button(
+                    label="Download final_report.pdf",
+                    data=pdf_file,
+                    file_name="final_report.pdf",
+                    mime="application/pdf",
+                )
+
+        except Exception as error:
+
+            st.error(
+                "Final PDF report generation failed."
+            )
+
+            st.exception(error)
