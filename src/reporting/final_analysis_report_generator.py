@@ -7,6 +7,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import (
     Image,
+    KeepTogether,
     PageBreak,
     Paragraph,
     SimpleDocTemplate,
@@ -26,6 +27,18 @@ class FinalAnalysisReportGenerator:
     """
     Generates final PDF report for the Transcriptomic Data QC & Analysis Framework.
     """
+
+    def _add_page_number(self, canvas, doc) -> None:
+        page_number = canvas.getPageNumber()
+
+        canvas.saveState()
+        canvas.setFont("Helvetica", 8)
+        canvas.drawRightString(
+            A4[0] - 40,
+            20,
+            f"Page {page_number}",
+        )
+        canvas.restoreState() 
 
     def generate(
         self,
@@ -130,7 +143,11 @@ class FinalAnalysisReportGenerator:
             "expression variability, but they do not represent differential expression analysis.",
         )
 
-        doc.build(story)
+        doc.build(
+            story,
+            onFirstPage=self._add_page_number,
+            onLaterPages=self._add_page_number,
+        )
 
         return FinalAnalysisReportResult(
             pdf_path=str(pdf_path),
@@ -195,16 +212,26 @@ class FinalAnalysisReportGenerator:
         path = Path(image_path)
 
         if not path.exists():
-            story.append(Paragraph(f"Missing visualization: {image_path}", styles["Normal"]))
+            story.append(
+                Paragraph(
+                    f"Missing visualization: {image_path}",
+                    styles["Normal"],
+                )
+            )
             story.append(Spacer(1, 12))
             return
 
-        story.append(Paragraph(path.name, styles["Heading2"]))
-        story.append(Spacer(1, 6))
-
         image = Image(str(path))
-        image._restrictSize(460, 320)
+        image._restrictSize(460, 300)
 
-        story.append(image)
-        story.append(Spacer(1, 18))
+        image_block = KeepTogether(
+            [
+                Paragraph(path.name, styles["Heading2"]),
+                Spacer(1, 6),
+                image,
+                Spacer(1, 18),
+            ]
+        )
+
+        story.append(image_block)
 
