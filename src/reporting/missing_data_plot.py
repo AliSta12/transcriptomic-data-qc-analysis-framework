@@ -37,18 +37,40 @@ class MissingDataPlot:
             .head(30)
         )
 
-        plt.figure(figsize=(12, 6))
-        plt.bar(
-            plot_df["gene"],
-            plot_df["missing_count"],
-        )
+        total_missing_values = gene_missing_summary[
+            "missing_count"
+        ].sum()
 
-        plt.title("Missing Data Summary")
-        plt.xlabel("Gene")
-        plt.ylabel("Missing Value Count")
-        plt.xticks(rotation=90)
+        plt.figure(figsize=(12, 6))
+
+        if total_missing_values == 0:
+            plt.text(
+                0.5,
+                0.5,
+                "No missing values detected",
+                ha="center",
+                va="center",
+                fontsize=16,
+            )
+            plt.title("Missing Data Summary")
+            plt.axis("off")
+        else:
+            plt.bar(
+                plot_df["gene"],
+                plot_df["missing_count"],
+            )
+
+            plt.title("Missing Data Summary")
+            plt.xlabel("Gene")
+            plt.ylabel("Missing Value Count")
+            plt.xticks(rotation=90)
+
         plt.tight_layout()
-        plt.savefig(plot_path)
+        plt.savefig(
+            plot_path,
+            dpi=300,
+            bbox_inches="tight",
+        )
         plt.close()
 
         return MissingDataPlotResult(
