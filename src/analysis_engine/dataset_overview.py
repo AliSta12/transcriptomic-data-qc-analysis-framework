@@ -50,31 +50,31 @@ class DatasetOverview:
             [
                 {
                     "metric": "sample_count",
-                    "value": sample_count,
+                    "value": int(sample_count),
                 },
                 {
                     "metric": "gene_count",
-                    "value": gene_count,
+                    "value": int(gene_count),
                 },
                 {
                     "metric": "group_count",
-                    "value": group_count,
+                    "value": int(group_count),
                 },
                 {
                     "metric": "min_expression",
-                    "value": min_expression,
+                    "value": round(min_expression, 2),
                 },
                 {
                     "metric": "max_expression",
-                    "value": max_expression,
+                    "value": round(max_expression, 2),
                 },
                 {
                     "metric": "mean_expression",
-                    "value": mean_expression,
+                    "value": round(mean_expression, 2),
                 },
                 {
                     "metric": "median_expression",
-                    "value": median_expression,
+                    "value": round(median_expression, 2),
                 },
             ]
         )

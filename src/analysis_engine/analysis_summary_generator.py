@@ -30,9 +30,8 @@ class AnalysisSummaryGenerator:
 
         self._validate_inputs(summary_dataframes)
 
-        summary_dataframe = pd.concat(
-            summary_dataframes,
-            ignore_index=True,
+        summary_dataframe = self._build_readable_summary(
+            summary_dataframes=summary_dataframes,
         )
 
         output_dir = Path(output_directory)
@@ -79,7 +78,99 @@ class AnalysisSummaryGenerator:
                 raise ValueError(
                     "Summary dataframes cannot be empty."
                 )
-    
+
+    def _build_readable_summary(
+        self,
+        summary_dataframes: list[pd.DataFrame],
+    ) -> pd.DataFrame:
+        
+        if len(summary_dataframes) < 6:
+            return pd.concat(
+                summary_dataframes,
+                ignore_index=True,
+            )
+
+        dataset_overview = summary_dataframes[0]
+        class_distribution = summary_dataframes[1]
+        variable_gene_analysis = summary_dataframes[2]
+        pca_analysis = summary_dataframes[3]
+        heatmap = summary_dataframes[4]
+        sample_clustering = summary_dataframes[5]
+
+        overview_values = dict(
+            zip(dataset_overview["metric"], dataset_overview["value"])
+        )
+
+        variable_values = dict(
+            zip(variable_gene_analysis["metric"], variable_gene_analysis["value"])
+        )
+
+        pca_values = dict(
+            zip(pca_analysis["metric"], pca_analysis["value"])
+        )
+
+        heatmap_values = dict(
+            zip(heatmap["metric"], heatmap["value"])
+        )
+
+        clustering_values = dict(
+            zip(sample_clustering["metric"], sample_clustering["value"])
+        )
+
+        class_distribution_text = "; ".join(
+            f"{row['group']}: {int(row['sample_count'])}"
+            for _, row in class_distribution.iterrows()
+        )
+
+        return pd.DataFrame(
+            [
+                {
+                    "analysis_step": "Dataset Overview",
+                    "result": (
+                        f"{int(overview_values['sample_count'])} samples, "
+                        f"{int(overview_values['gene_count'])} genes, "
+                        f"{int(overview_values['group_count'])} groups"
+                    ),
+                },
+                {
+                    "analysis_step": "Class Distribution",
+                    "result": class_distribution_text,
+                },
+                {
+                    "analysis_step": "Variable Gene Analysis",
+                    "result": (
+                        f"{int(variable_values['total_genes_analyzed'])} genes analyzed; "
+                        "top 50 and top 100 variable genes exported"
+                    ),
+                },
+                {
+                    "analysis_step": "PCA Analysis",
+                    "result": (
+                        f"PCA plot generated; PC1 explains "
+                        f"{float(pca_values['pc1_variance_explained']) * 100:.1f}% "
+                        f"and PC2 explains "
+                        f"{float(pca_values['pc2_variance_explained']) * 100:.1f}% "
+                        "of variance"
+                    ),
+                },
+                
+                {
+                    "analysis_step": "Heatmap",
+                    "result": (
+                        f"Heatmap generated for top "
+                        f"{int(heatmap_values['gene_count'])} variable genes"
+                    ),
+                },
+                {
+                    "analysis_step": "Sample Clustering",
+                    "result": (
+                        f"Hierarchical clustering generated using "
+                        f"{clustering_values['clustering_method']} method"
+                    ),
+                },
+            ]
+        )
+
     def _summary_dataframes_to_markdown(
         self,
         summary_dataframes: list[pd.DataFrame],
