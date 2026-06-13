@@ -1,3 +1,5 @@
+import time
+
 from src.analysis_engine.analysis_engine_pipeline import AnalysisEnginePipeline
 from pathlib import Path
 
@@ -69,16 +71,21 @@ if expression_file is not None and metadata_file is not None:
 
     if st.button("Run Data Cleaner"):
         try:
-            cleaner = DataCleanerPipeline()
-            result = cleaner.run(
-                expression_df=expression_df,
-                metadata_df=metadata_df,
-            )
+            start_time = time.time()
+
+            with st.spinner("Running rule-based data cleaning and QC..."):
+                cleaner = DataCleanerPipeline()
+                result = cleaner.run(
+                    expression_df=expression_df,
+                    metadata_df=metadata_df,
+                )
+
+            elapsed_time = time.time() - start_time
 
             st.session_state["cleaner_result"] = result
 
             st.success(
-                f"Data Cleaner finished successfully. "
+                f"Data Cleaner finished successfully in {elapsed_time:.2f} seconds. "
                 f"Final status: {result.final_status}"
             )
 
@@ -118,19 +125,23 @@ if "cleaner_result" in st.session_state:
     if st.button("Run Analysis Engine"):
 
         try:
+            start_time = time.time()
 
             output_directory = "outputs/streamlit_demo"
 
-            analysis_result = AnalysisEnginePipeline().run(
-                expression_df=result.cleaned_expression_matrix,
-                metadata_df=result.clean_metadata,
-                output_directory=output_directory,
-            )
+            with st.spinner("Running exploratory transcriptomic analysis..."):
+                analysis_result = AnalysisEnginePipeline().run(
+                    expression_df=result.cleaned_expression_matrix,
+                    metadata_df=result.clean_metadata,
+                    output_directory=output_directory,
+                )
+
+            elapsed_time = time.time() - start_time
 
             st.session_state["analysis_result"] = analysis_result
 
             st.success(
-                "Analysis Engine finished successfully."
+                f"Analysis Engine finished successfully in {elapsed_time:.2f} seconds."
             )
 
         except Exception as error:
@@ -182,16 +193,20 @@ if "analysis_result" in st.session_state:
 
     if st.button("Generate final PDF report"):
         try:
+            start_time = time.time()
 
-            report_result = FinalAnalysisReportGenerator().generate(
-                cleaner_result=st.session_state["cleaner_result"],
-                analysis_result=st.session_state["analysis_result"],
-                dataset_name=expression_file.name,
-                output_directory="outputs/streamlit_demo",
-            )
+            with st.spinner("Generating final PDF report..."):
+                report_result = FinalAnalysisReportGenerator().generate(
+                    cleaner_result=st.session_state["cleaner_result"],
+                    analysis_result=st.session_state["analysis_result"],
+                    dataset_name=expression_file.name,
+                    output_directory="outputs/streamlit_demo",
+                )
+
+            elapsed_time = time.time() - start_time
 
             st.success(
-                "Final PDF report generated successfully."
+                f"Final PDF report generated successfully in {elapsed_time:.2f} seconds."
             )
 
             with open(report_result.pdf_path, "rb") as pdf_file:
