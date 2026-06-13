@@ -75,6 +75,10 @@ class ClassDistributionAnalysis:
                 fontsize=9,
             )
 
+        max_count = max(counts) if counts else 0
+        upper_limit = max_count * 1.15 if max_count > 0 else 1
+        plt.ylim(0, upper_limit)
+
         plt.xticks(rotation=30, ha="right")
         plt.tight_layout()
         plt.savefig(
