@@ -5,8 +5,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.cluster.hierarchy import dendrogram, linkage
 
+MAX_SAMPLE_LABELS_FOR_DENDROGRAM = 50
 
-@dataclass
+@dataclass 
 class SampleClusteringResult:
     linkage_matrix: list
     plot_path: str
@@ -51,19 +52,42 @@ class SampleClustering:
 
         plot_path = output_dir / "sample_clustering_dendrogram.png"
 
-        plt.figure(figsize=(10, 6))
+        sample_count = len(expression_df)
+        show_sample_labels = (
+            sample_count <= MAX_SAMPLE_LABELS_FOR_DENDROGRAM
+        )
+
+        plt.figure(figsize=(16, 8))
 
         dendrogram(
             linkage_matrix,
-            labels=expression_df["sample_id"].tolist(),
+            labels=(
+                expression_df["sample_id"].tolist()
+                if show_sample_labels
+                else None
+            ),
+            no_labels=not show_sample_labels,
             leaf_rotation=90,
         )
 
-        plt.title("Sample Clustering Dendrogram")
-        plt.xlabel("Sample ID")
-        plt.ylabel("Distance")
+        plt.title(
+            f"Hierarchical Clustering of Samples (n={sample_count})"
+        )
+
+        plt.xlabel(
+            "Samples"
+        )
+
+        plt.ylabel(
+            "Ward linkage distance"
+        )
+
         plt.tight_layout()
-        plt.savefig(plot_path)
+        plt.savefig(
+            plot_path,
+            dpi=300,
+            bbox_inches="tight",
+        )
         plt.close()
 
         summary_dataframe = pd.DataFrame(
