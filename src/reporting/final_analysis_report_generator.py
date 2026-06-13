@@ -192,6 +192,15 @@ class FinalAnalysisReportGenerator:
         story.append(table)
         story.append(Spacer(1, 16))
 
+    def _format_table_value(self, value) -> str:
+        if pd.isna(value):
+            return ""
+
+        if isinstance(value, float) and value.is_integer():
+            return str(int(value))
+
+        return str(value)
+
     def _dataframe_to_table_data(
         self,
         dataframe: pd.DataFrame,
@@ -203,9 +212,12 @@ class FinalAnalysisReportGenerator:
 
         table_data = [list(display_df.columns)]
 
-        for row in display_df.astype(str).values.tolist():
-            table_data.append(row)
-
+        for row in display_df.values.tolist():
+            formatted_row = [
+                self._format_table_value(value)
+                for value in row
+            ]
+            table_data.append(formatted_row)
         return table_data
 
     def _add_image(self, story, styles, image_path: str) -> None:
