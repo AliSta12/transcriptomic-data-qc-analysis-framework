@@ -4,6 +4,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
+MAX_SAMPLE_LABELS_FOR_HEATMAP = 50
 
 @dataclass
 class HeatmapGeneratorResult:
@@ -55,7 +56,14 @@ class HeatmapGenerator:
             "heatmap_top50_variable_genes.png"
         )
 
-        plt.figure(figsize=(12, 8))
+        sample_count = heatmap_values.shape[0]
+        gene_count = heatmap_values.shape[1]
+
+        show_sample_labels = (
+            sample_count <= MAX_SAMPLE_LABELS_FOR_HEATMAP
+        )
+
+        plt.figure(figsize=(16, 10))
 
         plt.imshow(
             heatmap_values.T,
@@ -63,23 +71,43 @@ class HeatmapGenerator:
         )
 
         plt.colorbar(
-            label="Expression"
+            label="Expression value"
         )
 
         plt.title(
-            "Top 50 Variable Genes Heatmap"
+            f"Heatmap of Top {gene_count} Most Variable Genes"
         )
 
         plt.xlabel(
-            "Samples"
+            f"Samples (n={sample_count})"
         )
 
         plt.ylabel(
             "Genes"
         )
 
+        if show_sample_labels:
+            plt.xticks(
+                ticks=range(sample_count),
+                labels=heatmap_dataframe["sample_id"],
+                rotation=90,
+                fontsize=6,
+            )
+        else:
+            plt.xticks([])
+
+        plt.yticks(
+            ticks=range(gene_count),
+            labels=selected_genes,
+            fontsize=7,
+        )
+
         plt.tight_layout()
-        plt.savefig(plot_path)
+        plt.savefig(
+            plot_path,
+            dpi=300,
+            bbox_inches="tight",
+        )
         plt.close()
 
         summary_dataframe = pd.DataFrame(
