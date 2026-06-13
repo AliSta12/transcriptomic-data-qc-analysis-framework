@@ -99,23 +99,25 @@ if "cleaner_result" in st.session_state:
 
     st.header("3. Data Cleaner results")
 
-    st.subheader("Data readiness report")
-    st.dataframe(result.data_readiness_report)
+    with st.expander("Data readiness report", expanded=True):
+        st.dataframe(result.data_readiness_report)
 
-    st.subheader("Data quality report")
-    st.dataframe(result.data_quality_report)
+    with st.expander("Data quality report"):
+        st.dataframe(result.data_quality_report)
 
-    st.subheader("Harmonization report")
-    st.dataframe(result.harmonization_report)
+    with st.expander("Harmonization report"):
+        st.dataframe(result.harmonization_report)
 
-    st.subheader("Audit log")
-    st.dataframe(result.audit_log)
+    with st.expander("Audit log"):
+        st.dataframe(result.audit_log)
 
-    st.subheader("Cleaned expression matrix preview")
-    st.dataframe(result.cleaned_expression_matrix.head())
+    with st.expander("Cleaned expression matrix preview"):
+        st.dataframe(result.cleaned_expression_matrix.head())
 
-    st.subheader("Clean metadata preview")
-    st.dataframe(result.clean_metadata.head())
+    with st.expander("Clean metadata preview"):
+        st.dataframe(result.clean_metadata.head())
+
+
 if "cleaner_result" in st.session_state:
 
     result = st.session_state["cleaner_result"]
@@ -155,40 +157,68 @@ if "analysis_result" in st.session_state:
 
     st.header("5. Analysis Results")
 
-    st.subheader("Dataset Overview")
-    st.dataframe(
-        analysis.dataset_overview.summary_dataframe
+    (
+        overview_tab,
+        class_tab,
+        pca_tab,
+        variable_genes_tab,
+        heatmap_tab,
+        clustering_tab,
+        summary_tab,
+    ) = st.tabs(
+        [
+            "Overview",
+            "Class Distribution",
+            "PCA",
+            "Variable Genes",
+            "Heatmap",
+            "Clustering",
+            "Summary",
+        ]
     )
 
-    st.subheader("Class Distribution")
-    st.image(
-        analysis.class_distribution.plot_path
-    )
+    with overview_tab:
+        st.subheader("Dataset Overview")
+        st.dataframe(
+            analysis.dataset_overview.summary_dataframe
+        )
 
-    st.subheader("PCA")
-    st.image(
-        analysis.pca_analysis.plot_path
-    )
+    with class_tab:
+        st.subheader("Class Distribution")
+        st.image(
+            analysis.class_distribution.plot_path
+        )
 
-    st.subheader("Top Variable Genes")
-    st.image(
-        analysis.variable_gene_analysis.barplot_path
-    )
+    with pca_tab:
+        st.subheader("PCA")
+        st.image(
+            analysis.pca_analysis.plot_path
+        )
 
-    st.subheader("Heatmap")
-    st.image(
-        analysis.heatmap.plot_path
-    )
+    with variable_genes_tab:
+        st.subheader("Top Variable Genes")
+        st.image(
+            analysis.variable_gene_analysis.barplot_path
+        )
 
-    st.subheader("Sample Clustering")
-    st.image(
-        analysis.sample_clustering.plot_path
-    )
+    with heatmap_tab:
+        st.subheader("Heatmap")
+        st.image(
+            analysis.heatmap.plot_path
+        )
 
-    st.subheader("Analysis Summary")
-    st.dataframe(
-        analysis.analysis_summary.summary_dataframe
-    )
+    with clustering_tab:
+        st.subheader("Sample Clustering")
+        st.image(
+            analysis.sample_clustering.plot_path
+        )
+
+    with summary_tab:
+        st.subheader("Analysis Summary")
+        st.dataframe(
+            analysis.analysis_summary.summary_dataframe
+        )
+
     st.header("6. Final PDF Report")
 
     if st.button("Generate final PDF report"):
@@ -210,7 +240,6 @@ if "analysis_result" in st.session_state:
             )
 
             with open(report_result.pdf_path, "rb") as pdf_file:
-
                 st.download_button(
                     label="Download final_report.pdf",
                     data=pdf_file,
@@ -219,9 +248,7 @@ if "analysis_result" in st.session_state:
                 )
 
         except Exception as error:
-
             st.error(
                 "Final PDF report generation failed."
             )
-
             st.exception(error)
