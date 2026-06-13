@@ -199,6 +199,38 @@ if "cleaner_result" in st.session_state:
             use_container_width=True,
         )
 
+if "cleaner_result" in st.session_state:
+
+    result = st.session_state["cleaner_result"]
+
+    st.header("4. Analysis Engine")
+
+    if st.button("Run Analysis Engine"):
+
+        try:
+            start_time = time.time()
+
+            output_directory = "outputs/streamlit_demo"
+
+            with st.spinner("Running exploratory transcriptomic analysis..."):
+                analysis_result = AnalysisEnginePipeline().run(
+                    expression_df=result.cleaned_expression_matrix,
+                    metadata_df=result.clean_metadata,
+                    output_directory=output_directory,
+                )
+
+            elapsed_time = time.time() - start_time
+
+            st.session_state["analysis_result"] = analysis_result
+
+            st.success(
+                f"Analysis Engine finished successfully in {elapsed_time:.2f} seconds."
+            )
+
+        except Exception as error:
+            st.error("Analysis Engine failed.")
+            st.exception(error)
+
 
 if "analysis_result" in st.session_state:
 
@@ -229,80 +261,80 @@ if "analysis_result" in st.session_state:
     )
 
     with overview_tab:
-    st.subheader("Dataset Overview")
-    st.caption(
-        "Summary of the cleaned dataset used by the Analysis Engine."
-    )
-    st.dataframe(
-        analysis.dataset_overview.summary_dataframe,
-        use_container_width=True,
-    )
+        st.subheader("Dataset Overview")
+        st.caption(
+            "Summary of the cleaned dataset used by the Analysis Engine."
+        )
+        st.dataframe(
+            analysis.dataset_overview.summary_dataframe,
+            use_container_width=True,
+        )
 
     with class_tab:
-    st.subheader("Class Distribution")
-    st.caption(
-        "Shows the number and percentage of samples in each biological group. "
-        "This helps assess class balance before interpreting PCA and clustering."
-    )
-    st.image(
-        analysis.class_distribution.plot_path,
-        use_container_width=True,
-    )
+        st.subheader("Class Distribution")
+        st.caption(
+            "Shows the number and percentage of samples in each biological group. "
+            "This helps assess class balance before interpreting PCA and clustering."
+        )
+        st.image(
+            analysis.class_distribution.plot_path,
+            use_container_width=True,
+        )
 
     with pca_tab:
-    st.subheader("PCA")
-    st.caption(
-        "PCA visualizes sample-level variation in the cleaned expression matrix. "
-        "Points represent samples and colors represent metadata groups. "
-        "This is an exploratory visualization, not a formal differential expression analysis."
-    )
-    st.image(
-        analysis.pca_analysis.plot_path,
-        use_container_width=True,
-    )
+        st.subheader("PCA")
+        st.caption(
+            "PCA visualizes sample-level variation in the cleaned expression matrix. "
+            "Points represent samples and colors represent metadata groups. "
+            "This is an exploratory visualization, not a formal differential expression analysis."
+        )
+        st.image(
+            analysis.pca_analysis.plot_path,
+            use_container_width=True,
+        )
 
     with variable_genes_tab:
-    st.subheader("Top Variable Genes")
-    st.caption(
-        "Shows the top 50 genes ranked by expression variance across samples. "
-        "This ranking is exploratory and is used for visualization, not formal differential expression analysis."
-    )
-    st.image(
-        analysis.variable_gene_analysis.barplot_path,
-        use_container_width=True,
-    )
+        st.subheader("Top Variable Genes")
+        st.caption(
+            "Shows the top 50 genes ranked by expression variance across samples. "
+            "This ranking is exploratory and is used for visualization, not formal differential expression analysis."
+        )
+        st.image(
+            analysis.variable_gene_analysis.barplot_path,
+            use_container_width=True,
+        )
 
     with heatmap_tab:
-    st.subheader("Heatmap")
-    st.caption(
-        "Heatmap of the top 50 most variable genes across samples. "
-        "For large datasets, sample labels are hidden to keep the visualization readable."
-    )
-    st.image(
-        analysis.heatmap.plot_path,
-        use_container_width=True,
-    )
+        st.subheader("Heatmap")
+        st.caption(
+            "Heatmap of the top 50 most variable genes across samples. "
+            "For large datasets, sample labels are hidden to keep the visualization readable."
+        )
+        st.image(
+            analysis.heatmap.plot_path,
+            use_container_width=True,
+        )
 
     with clustering_tab:
-    st.subheader("Sample Clustering")
-    st.caption(
-        "Hierarchical clustering visualizes similarity between samples based on the cleaned expression matrix. "
-        "For large datasets, sample labels are hidden to avoid an unreadable plot."
-    )
-    st.image(
-        analysis.sample_clustering.plot_path,
-        use_container_width=True,
-    )
+        st.subheader("Sample Clustering")
+        st.caption(
+            "Hierarchical clustering visualizes similarity between samples based on the cleaned expression matrix. "
+            "For large datasets, sample labels are hidden to avoid an unreadable plot."
+        )
+        st.image(
+            analysis.sample_clustering.plot_path,
+            use_container_width=True,
+        )
 
     with summary_tab:
-    st.subheader("Analysis Summary")
-    st.caption(
-        "Concise summary of exploratory analysis outputs generated from the cleaned dataset."
-    )
-    st.dataframe(
-        analysis.analysis_summary.summary_dataframe,
-        use_container_width=True,
-    )
+        st.subheader("Analysis Summary")
+        st.caption(
+            "Concise summary of exploratory analysis outputs generated from the cleaned dataset."
+        )
+        st.dataframe(
+            analysis.analysis_summary.summary_dataframe,
+            use_container_width=True,
+        )
 
     st.header("6. Final PDF Report")
 
@@ -311,7 +343,7 @@ if "analysis_result" in st.session_state:
         "cleaning and harmonization summary, exploratory analysis results and visualizations."
     )
 
-    if st.button("Generate final PDF report", type="primary"):
+    if st.button("Generate final PDF report"):
         try:
             start_time = time.time()
 
