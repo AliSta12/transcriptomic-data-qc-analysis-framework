@@ -42,11 +42,16 @@ def read_uploaded_file(uploaded_file) -> pd.DataFrame:
 st.header("1. Upload input files")
 
 st.info(
-    "Upload a gene expression matrix and metadata file. "
-    "Metadata must contain sample_id and group columns. "
-    "Supported formats: CSV, TSV and XLSX. "
-    "This app works with processed expression matrices, not FASTQ or BAM files. "
-    "After harmonization, the internal data format is sample × gene."
+    """
+    Upload a gene expression matrix and metadata file.
+
+    Requirements:
+    - expression matrix: CSV, TSV or XLSX
+    - metadata file: must contain `sample_id` and `group` columns
+    - internal format after harmonization: sample × gene
+
+    This app works with processed expression matrices, not FASTQ or BAM files.
+    """
 )
 
 expression_file = st.file_uploader(
@@ -60,20 +65,38 @@ metadata_file = st.file_uploader(
 )
 
 if expression_file is not None and metadata_file is not None:
-    expression_df = read_uploaded_file(expression_file)
-    metadata_df = read_uploaded_file(metadata_file)
+    start_time = time.time()
+
+    with st.spinner("Loading uploaded files and preparing raw data preview..."):
+        expression_df = read_uploaded_file(expression_file)
+        metadata_df = read_uploaded_file(metadata_file)
+
+    elapsed_time = time.time() - start_time
+
+    st.success(
+        f"Uploaded files loaded successfully in {elapsed_time:.2f} seconds."
+    )
 
     st.subheader("Input preview")
+    st.caption(
+        "Preview shows raw uploaded files before rule-based cleaning and harmonization."
+    )
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.write("Expression matrix")
-        st.dataframe(expression_df.head())
+        st.write("Raw expression matrix")
+        st.dataframe(
+            expression_df.head(),
+            use_container_width=True,
+        )
 
     with col2:
-        st.write("Metadata")
-        st.dataframe(metadata_df.head())
+        st.write("Raw metadata")
+        st.dataframe(
+            metadata_df.head(),
+            use_container_width=True,
+        )
 
     st.header("2. Run Data Cleaner")
 
@@ -108,55 +131,73 @@ if "cleaner_result" in st.session_state:
     st.header("3. Data Cleaner results")
 
     with st.expander("Data readiness report", expanded=True):
-        st.dataframe(result.data_readiness_report)
+        readiness_status = result.data_readiness_report["overall_status"].iloc[0]
 
-    with st.expander("Data quality report"):
-        st.dataframe(result.data_quality_report)
-
-    with st.expander("Harmonization report"):
-        st.dataframe(result.harmonization_report)
-
-    with st.expander("Audit log"):
-        st.dataframe(result.audit_log)
-
-    with st.expander("Cleaned expression matrix preview"):
-        st.dataframe(result.cleaned_expression_matrix.head())
-
-    with st.expander("Clean metadata preview"):
-        st.dataframe(result.clean_metadata.head())
-
-
-if "cleaner_result" in st.session_state:
-
-    result = st.session_state["cleaner_result"]
-
-    st.header("4. Analysis Engine")
-
-    if st.button("Run Analysis Engine"):
-
-        try:
-            start_time = time.time()
-
-            output_directory = "outputs/streamlit_demo"
-
-            with st.spinner("Running exploratory transcriptomic analysis..."):
-                analysis_result = AnalysisEnginePipeline().run(
-                    expression_df=result.cleaned_expression_matrix,
-                    metadata_df=result.clean_metadata,
-                    output_directory=output_directory,
-                )
-
-            elapsed_time = time.time() - start_time
-
-            st.session_state["analysis_result"] = analysis_result
-
-            st.success(
-                f"Analysis Engine finished successfully in {elapsed_time:.2f} seconds."
+        if readiness_status == "READY_FOR_ANALYSIS":
+            st.success("Dataset is ready for exploratory analysis.")
+        elif readiness_status == "READY_WITH_WARNINGS":
+            st.warning(
+                "Dataset is ready for exploratory analysis, but warnings should be reviewed."
+            )
+        else:
+            st.error(
+                "Dataset requires review before exploratory analysis."
             )
 
-        except Exception as error:
-            st.error("Analysis Engine failed.")
-            st.exception(error)
+        st.dataframe(
+            result.data_readiness_report,
+            use_container_width=True,
+        )
+
+    with st.expander("Data quality report"):
+        st.caption(
+            "QC statuses summarize detected issues. "
+            "WARNING means that the dataset can still be analyzed, but the issue should be reviewed in the report."
+        )
+        st.dataframe(
+            result.data_quality_report,
+            use_container_width=True,
+        )
+
+    with st.expander("Harmonization report"):
+        st.caption(
+            "This report documents structural changes applied before analysis, "
+            "including data orientation and standardized column names."
+        )
+        st.dataframe(
+            result.harmonization_report,
+            use_container_width=True,
+        )
+
+    with st.expander("Audit log"):
+        st.caption(
+            "The audit log records automatic rule-based decisions made by the Data Cleaner, "
+            "including the detected issue, applied rule, decision, status and reason."
+        )
+        st.dataframe(
+            result.audit_log,
+            use_container_width=True,
+        )
+
+    with st.expander("Cleaned expression matrix preview"):
+        st.caption(
+            "Preview of the harmonized expression matrix in sample × gene format. "
+            "Only the first rows are displayed."
+        )
+        st.dataframe(
+            result.cleaned_expression_matrix.head(),
+            use_container_width=True,
+        )
+
+    with st.expander("Clean metadata preview"):
+        st.caption(
+            "Preview of standardized metadata after column harmonization. "
+            "If the input metadata does not contain a dataset column, the value is set to 'unknown'."
+        )
+        st.dataframe(
+            result.clean_metadata.head(),
+            use_container_width=True,
+        )
 
 
 if "analysis_result" in st.session_state:
@@ -164,7 +205,9 @@ if "analysis_result" in st.session_state:
     analysis = st.session_state["analysis_result"]
 
     st.header("5. Analysis Results")
-
+    st.success(
+        "Exploratory transcriptomic analysis results are available below."
+    )
     (
         overview_tab,
         class_tab,
@@ -186,50 +229,89 @@ if "analysis_result" in st.session_state:
     )
 
     with overview_tab:
-        st.subheader("Dataset Overview")
-        st.dataframe(
-            analysis.dataset_overview.summary_dataframe
-        )
+    st.subheader("Dataset Overview")
+    st.caption(
+        "Summary of the cleaned dataset used by the Analysis Engine."
+    )
+    st.dataframe(
+        analysis.dataset_overview.summary_dataframe,
+        use_container_width=True,
+    )
 
     with class_tab:
-        st.subheader("Class Distribution")
-        st.image(
-            analysis.class_distribution.plot_path
-        )
+    st.subheader("Class Distribution")
+    st.caption(
+        "Shows the number and percentage of samples in each biological group. "
+        "This helps assess class balance before interpreting PCA and clustering."
+    )
+    st.image(
+        analysis.class_distribution.plot_path,
+        use_container_width=True,
+    )
 
     with pca_tab:
-        st.subheader("PCA")
-        st.image(
-            analysis.pca_analysis.plot_path
-        )
+    st.subheader("PCA")
+    st.caption(
+        "PCA visualizes sample-level variation in the cleaned expression matrix. "
+        "Points represent samples and colors represent metadata groups. "
+        "This is an exploratory visualization, not a formal differential expression analysis."
+    )
+    st.image(
+        analysis.pca_analysis.plot_path,
+        use_container_width=True,
+    )
 
     with variable_genes_tab:
-        st.subheader("Top Variable Genes")
-        st.image(
-            analysis.variable_gene_analysis.barplot_path
-        )
+    st.subheader("Top Variable Genes")
+    st.caption(
+        "Shows the top 50 genes ranked by expression variance across samples. "
+        "This ranking is exploratory and is used for visualization, not formal differential expression analysis."
+    )
+    st.image(
+        analysis.variable_gene_analysis.barplot_path,
+        use_container_width=True,
+    )
 
     with heatmap_tab:
-        st.subheader("Heatmap")
-        st.image(
-            analysis.heatmap.plot_path
-        )
+    st.subheader("Heatmap")
+    st.caption(
+        "Heatmap of the top 50 most variable genes across samples. "
+        "For large datasets, sample labels are hidden to keep the visualization readable."
+    )
+    st.image(
+        analysis.heatmap.plot_path,
+        use_container_width=True,
+    )
 
     with clustering_tab:
-        st.subheader("Sample Clustering")
-        st.image(
-            analysis.sample_clustering.plot_path
-        )
+    st.subheader("Sample Clustering")
+    st.caption(
+        "Hierarchical clustering visualizes similarity between samples based on the cleaned expression matrix. "
+        "For large datasets, sample labels are hidden to avoid an unreadable plot."
+    )
+    st.image(
+        analysis.sample_clustering.plot_path,
+        use_container_width=True,
+    )
 
     with summary_tab:
-        st.subheader("Analysis Summary")
-        st.dataframe(
-            analysis.analysis_summary.summary_dataframe
-        )
+    st.subheader("Analysis Summary")
+    st.caption(
+        "Concise summary of exploratory analysis outputs generated from the cleaned dataset."
+    )
+    st.dataframe(
+        analysis.analysis_summary.summary_dataframe,
+        use_container_width=True,
+    )
 
     st.header("6. Final PDF Report")
 
-    if st.button("Generate final PDF report"):
+    st.caption(
+        "Generate a final report containing data quality assessment, "
+        "cleaning and harmonization summary, exploratory analysis results and visualizations."
+    )
+
+    if st.button("Generate final PDF report", type="primary"):
         try:
             start_time = time.time()
 
