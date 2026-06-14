@@ -317,3 +317,27 @@ def test_run_dataset_intake_runs_complete_workflow(tmp_path):
 
     assert statuses["expression_matrix"] == "auto_selected"
     assert statuses["metadata"] == "auto_selected"
+
+
+def test_discover_dataset_files_supports_compressed_csv(tmp_path):
+    import gzip
+
+    dataset_dir = tmp_path / "dataset"
+    dataset_dir.mkdir()
+
+    compressed_file = dataset_dir / "expression_matrix.csv.gz"
+    content = (
+        "sample_id,G1,G2,G3,G4,G5,G6,G7,G8,G9,G10,G11,G12,G13,G14,G15,G16,G17,G18,G19,G20,G21\n"
+        "S1,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21\n"
+        "S2,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21\n"
+    )
+
+    with gzip.open(compressed_file, "wt") as file:
+        file.write(content)
+
+    result = discover_dataset_files(dataset_dir)
+
+    assert result.iloc[0]["file_name"] == "expression_matrix.csv.gz"
+    assert result.iloc[0]["file_type"] == "csv.gz"
+    assert result.iloc[0]["predicted_role"] == "expression_matrix"
+    assert result.iloc[0]["column_count"] == 22

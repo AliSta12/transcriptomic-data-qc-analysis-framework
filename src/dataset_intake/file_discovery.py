@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 
 
-SUPPORTED_EXTENSIONS = {".csv", ".tsv", ".txt", ".xlsx"}
+SUPPORTED_EXTENSIONS = {".csv", ".tsv", ".txt", ".xlsx", ".csv.gz", ".tsv.gz", ".txt.gz"}
 
 IGNORED_FILENAME_KEYWORDS = {
     "readme",
@@ -81,7 +81,7 @@ def discover_dataset_files(dataset_directory: str | Path) -> pd.DataFrame:
         if not file_path.is_file():
             continue
 
-        suffix = file_path.suffix.lower()
+        suffix = get_supported_file_extension(file_path)
 
         if suffix not in SUPPORTED_EXTENSIONS:
             continue
@@ -113,7 +113,7 @@ def discover_dataset_files(dataset_directory: str | Path) -> pd.DataFrame:
             {
                 "file_path": str(file_path),
                 "file_name": file_path.name,
-                "file_type": suffix.replace(".", ""),
+                "file_type": suffix.replace(".", "").replace("gz", ".gz"),
                 "predicted_role": predicted_role,
                 "expression_score": expression_score,
                 "metadata_score": metadata_score,
@@ -162,7 +162,7 @@ def classify_file_by_name(file_path: str | Path) -> tuple[str, str, list[str]]:
     """
     path = Path(file_path)
     filename = path.name.lower()
-    suffix = path.suffix.lower()
+    suffix = get_supported_file_extension(path)
 
     reasons = []
 
@@ -276,16 +276,31 @@ def read_table_preview(file_path: str | Path, max_rows: int = 100) -> pd.DataFra
     Read a small preview from a supported tabular file.
     """
     path = Path(file_path)
-    suffix = path.suffix.lower()
+    suffix = get_supported_file_extension(path)
 
     if suffix == ".csv":
         return pd.read_csv(path, nrows=max_rows)
 
+    if suffix == ".csv.gz":
+        return pd.read_csv(path, compression="gzip", nrows=max_rows)
+
     if suffix == ".tsv":
         return pd.read_csv(path, sep="\t", nrows=max_rows)
 
+    if suffix == ".tsv.gz":
+        return pd.read_csv(path, sep="\t", compression="gzip", nrows=max_rows)
+
     if suffix == ".txt":
         return pd.read_csv(path, sep=None, engine="python", nrows=max_rows)
+
+    if suffix == ".txt.gz":
+        return pd.read_csv(
+            path,
+            sep=None,
+            engine="python",
+            compression="gzip",
+            nrows=max_rows,
+        )
 
     if suffix == ".xlsx":
         return pd.read_excel(path, nrows=max_rows)
@@ -305,7 +320,7 @@ def calculate_expression_score(
     score = 0
     reasons = []
 
-    if path.suffix.lower() in SUPPORTED_EXTENSIONS:
+    if get_supported_file_extension(path) in SUPPORTED_EXTENSIONS:
         score += 1
         reasons.append("supported tabular extension")
 
@@ -352,7 +367,7 @@ def calculate_metadata_score(
     score = 0
     reasons = []
 
-    if path.suffix.lower() in SUPPORTED_EXTENSIONS:
+    if get_supported_file_extension(path) in SUPPORTED_EXTENSIONS:
         score += 1
         reasons.append("supported tabular extension")
 
@@ -419,6 +434,21 @@ def choose_role_from_scores(
         return filename_role, filename_confidence
 
     return "unknown", "low"
+
+
+def get_supported_file_extension(file_path: str | Path) -> str:
+    """
+    Return supported extension, including compressed tabular extensions.
+    """
+    path = Path(file_path)
+    suffixes = [suffix.lower() for suffix in path.suffixes]
+
+    if len(suffixes) >= 2 and suffixes[-1] == ".gz":
+        combined_suffix = f"{suffixes[-2]}{suffixes[-1]}"
+        if combined_suffix in SUPPORTED_EXTENSIONS:
+            return combined_suffix
+
+    return path.suffix.lower()
 
 
 def _contains_any_keyword(filename: str, keywords: set[str]) -> bool:
