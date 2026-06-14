@@ -178,6 +178,17 @@ with st.expander("Run Dataset Intake on a local dataset folder", expanded=False)
                 "Please use manual upload or review the detected files."
             )
 
+            if st.button("Go to Input Review"):
+                st.session_state["show_input_review"] = True
+                st.session_state["input_review_source"] = "Dataset Intake"
+                st.session_state["input_review_message"] = (
+                    "Dataset Intake could not safely auto-select both required input files. "
+                    "The dataset needs manual review before it can be cleaned and analyzed."
+                )
+                st.success(
+                    "Input Review guidance is now available below the Dataset Intake section."
+                )
+
         with st.expander("Show detailed Dataset Intake discovery report", expanded=False):
             st.caption(
                 "Full audit-style report with file scores, preview statistics, "
@@ -204,6 +215,74 @@ with st.expander("Run Dataset Intake on a local dataset folder", expanded=False)
             f"{intake_result['output_paths']['dataset_intake_report']} and "
             f"{intake_result['output_paths']['selected_input_files']}"
         )
+
+if st.session_state.get("show_input_review", False):
+    st.header("Input Review & Repair Guidance")
+
+    st.warning(
+        st.session_state.get(
+            "input_review_message",
+            "Manual review is required before continuing.",
+        )
+    )
+
+    st.markdown(
+        """
+        This section explains what the user should check manually when the app
+        cannot safely prepare the dataset using explicit rules.
+        """
+    )
+
+    st.subheader("What was detected?")
+
+    if "dataset_intake_result" in st.session_state:
+        selected_files = st.session_state["dataset_intake_result"]["selected_files"].copy()
+
+        selected_files["file_name"] = selected_files["file_path"].apply(
+            lambda value: Path(value).name if value else ""
+        )
+
+        st.dataframe(
+            selected_files[
+                [
+                    "role",
+                    "file_name",
+                    "selection_status",
+                    "confidence",
+                    "reason",
+                ]
+            ],
+            width="stretch",
+        )
+    else:
+        st.info("No Dataset Intake result is currently available.")
+
+    st.subheader("Recommended manual checks")
+
+    st.markdown(
+        """
+        Before uploading corrected files, check that:
+
+        - the expression matrix file contains samples and gene expression values,
+        - the metadata file contains at least `sample_id` and `group`,
+        - `sample_id` values match between expression data and metadata,
+        - expression values are numeric,
+        - files are saved as CSV, TSV or XLSX,
+        - the expression matrix can be harmonized to the internal format: sample × gene.
+        """
+    )
+
+    st.subheader("Recommended next action")
+
+    st.info(
+        "Open the candidate files locally, correct the structure if needed, "
+        "save the corrected files, and upload them manually in section 1."
+    )
+
+    if st.button("Hide Input Review"):
+        st.session_state["show_input_review"] = False
+        st.rerun()
+
 
 st.header("1. Upload input files")
 
