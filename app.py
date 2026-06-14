@@ -7,6 +7,7 @@ import pandas as pd
 import streamlit as st
 
 from src.data_cleaner.data_cleaner_pipeline import DataCleanerPipeline
+from src.dataset_intake.file_discovery import run_dataset_intake
 from src.reporting.final_analysis_report_generator import FinalAnalysisReportGenerator
 
 st.set_page_config(
@@ -38,6 +39,123 @@ def read_uploaded_file(uploaded_file) -> pd.DataFrame:
 
     raise ValueError("Unsupported file format.")
 
+
+st.header("0. Dataset Intake")
+
+st.caption(
+    "Optional rule-based scan of a locally downloaded public dataset folder. "
+    "This step helps identify candidate expression and metadata files before manual upload."
+)
+
+with st.expander("Run Dataset Intake on a local dataset folder", expanded=False):
+    dataset_directory = st.text_input(
+        "Local dataset folder",
+        value="data/raw/pancan/TCGA-PANCAN-HiSeq-801x20531",
+        help=(
+            "Provide a local folder containing files from a downloaded public dataset. "
+            "The app will scan supported tabular files and report candidate input files."
+        ),
+    )
+
+    intake_output_directory = st.text_input(
+        "Dataset Intake output directory",
+        value="outputs/streamlit_dataset_intake",
+    )
+
+    if st.button("Run Dataset Intake"):
+        try:
+            start_time = time.time()
+
+            with st.spinner("Scanning dataset folder with rule-based Dataset Intake..."):
+                intake_result = run_dataset_intake(
+                    dataset_directory=dataset_directory,
+                    output_directory=intake_output_directory,
+                )
+
+            elapsed_time = time.time() - start_time
+
+            st.session_state["dataset_intake_result"] = intake_result
+
+            st.success(
+                f"Dataset Intake completed successfully in {elapsed_time:.2f} seconds."
+            )
+
+        except Exception as error:
+            st.error("Dataset Intake failed.")
+            st.exception(error)
+
+    if "dataset_intake_result" in st.session_state:
+        intake_result = st.session_state["dataset_intake_result"]
+        selected_files = intake_result["selected_files"]
+        discovery_report = intake_result["discovery_report"]
+
+        auto_selected_count = (
+            selected_files["selection_status"]
+            .eq("auto_selected")
+            .sum()
+        )
+
+        if auto_selected_count == 2:
+            st.success(
+                "Dataset Intake found one high-confidence expression matrix "
+                "and one high-confidence metadata file."
+            )
+        else:
+            st.warning(
+                "Dataset Intake could not safely auto-select all required files. "
+                "Manual review is required."
+            )
+
+        st.subheader("Selected Input Files")
+        st.caption(
+            "Automatic selection is performed only when high-confidence candidates are unique. "
+            "These files are not passed to the Data Cleaner automatically yet."
+        )
+
+        selected_display = selected_files.copy()
+        selected_display["file_name"] = selected_display["file_path"].apply(
+            lambda value: Path(value).name if value else ""
+        )
+
+        st.dataframe(
+            selected_display[
+                [
+                    "role",
+                    "file_name",
+                    "selection_status",
+                    "confidence",
+                    "reason",
+                ]
+            ],
+            width="stretch",
+        )
+
+        with st.expander("Show detailed Dataset Intake discovery report", expanded=False):
+            st.caption(
+                "Full audit-style report with file scores, preview statistics, "
+                "classification reasons and warnings."
+            )
+
+            if discovery_report.empty:
+                st.info(
+                    "No supported tabular files were detected in the selected folder."
+                )
+            else:
+                discovery_display = discovery_report.copy()
+                discovery_display["file_path"] = discovery_display["file_path"].apply(
+                    lambda value: Path(value).name
+                )
+
+                st.dataframe(
+                    discovery_display,
+                    width="stretch",
+                )
+
+        st.caption(
+            "Saved outputs: "
+            f"{intake_result['output_paths']['dataset_intake_report']} and "
+            f"{intake_result['output_paths']['selected_input_files']}"
+        )
 
 st.header("1. Upload input files")
 
