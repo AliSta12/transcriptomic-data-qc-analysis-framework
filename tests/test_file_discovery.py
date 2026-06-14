@@ -44,7 +44,16 @@ def test_discover_dataset_files_lists_supported_files(tmp_path):
     dataset_dir = tmp_path / "dataset"
     dataset_dir.mkdir()
 
-    (dataset_dir / "expression_matrix.csv").write_text("sample_id,G1,G2\nS1,1,2\n")
+    gene_columns = ",".join([f"G{i}" for i in range(1, 31)])
+    expression_values = ",".join(str(i) for i in range(1, 31))
+    (dataset_dir / "expression_matrix.csv").write_text(
+        f"sample_id,{gene_columns}\n"
+        f"S1,{expression_values}\n"
+        f"S2,{expression_values}\n"
+        f"S3,{expression_values}\n"
+        f"S4,{expression_values}\n"
+        f"S5,{expression_values}\n"
+    )
     (dataset_dir / "sample_metadata.tsv").write_text("sample_id\tgroup\nS1\ttumor\n")
     (dataset_dir / "README.md").write_text("documentation")
     (dataset_dir / "image.png").write_text("not tabular")
@@ -75,3 +84,65 @@ def test_discover_dataset_files_raises_for_file_instead_of_directory(tmp_path):
 
     with pytest.raises(NotADirectoryError):
         discover_dataset_files(file_path)
+
+
+def test_discover_dataset_files_adds_preview_statistics(tmp_path):
+    dataset_dir = tmp_path / "dataset"
+    dataset_dir.mkdir()
+
+    expression_file = dataset_dir / "expression_matrix.csv"
+    expression_file.write_text(
+        "sample_id,G1,G2,G3,G4,G5\n"
+        "S1,1,2,3,4,5\n"
+        "S2,2,3,4,5,6\n"
+        "S3,3,4,5,6,7\n"
+        "S4,4,5,6,7,8\n"
+        "S5,5,6,7,8,9\n"
+    )
+
+    result = discover_dataset_files(dataset_dir)
+
+    row = result.iloc[0]
+
+    assert row["column_count"] == 6
+    assert row["row_count_preview"] == 5
+    assert row["numeric_column_count"] == 5
+    assert row["numeric_value_ratio"] > 0.8
+    assert row["expression_score"] > row["metadata_score"]
+
+
+def test_discover_dataset_files_scores_metadata_content(tmp_path):
+    dataset_dir = tmp_path / "dataset"
+    dataset_dir.mkdir()
+
+    metadata_file = dataset_dir / "labels.csv"
+    metadata_file.write_text(
+        "sample_id,group,batch\n"
+        "S1,tumor,A\n"
+        "S2,normal,A\n"
+        "S3,tumor,B\n"
+    )
+
+    result = discover_dataset_files(dataset_dir)
+
+    row = result.iloc[0]
+
+    assert row["has_sample_like_column"] == True
+    assert row["has_group_like_column"] == True
+    assert row["metadata_score"] > row["expression_score"]
+    assert row["predicted_role"] == "metadata"
+
+
+def test_discover_dataset_files_records_warning_for_unreadable_file(tmp_path):
+    dataset_dir = tmp_path / "dataset"
+    dataset_dir.mkdir()
+
+    broken_file = dataset_dir / "data.xlsx"
+    broken_file.write_text("this is not a valid xlsx file")
+
+    result = discover_dataset_files(dataset_dir)
+
+    row = result.iloc[0]
+
+    assert row["file_name"] == "data.xlsx"
+    assert "preview read failed" in row["warnings"]
