@@ -146,3 +146,106 @@ def test_discover_dataset_files_records_warning_for_unreadable_file(tmp_path):
 
     assert row["file_name"] == "data.xlsx"
     assert "preview read failed" in row["warnings"]
+
+
+def test_select_input_files_auto_selects_unique_high_confidence_candidates(tmp_path):
+    from src.dataset_intake.file_discovery import select_input_files
+
+    dataset_dir = _create_dataset_with_unique_expression_and_metadata(tmp_path)
+
+    discovery_report = discover_dataset_files(dataset_dir)
+
+    result = select_input_files(discovery_report)
+
+    statuses = dict(zip(result["role"], result["selection_status"]))
+
+    assert statuses["expression_matrix"] == "auto_selected"
+    assert statuses["metadata"] == "auto_selected"
+
+
+def test_select_input_files_requires_review_when_expression_missing(tmp_path):
+    from src.dataset_intake.file_discovery import select_input_files
+
+    dataset_dir = tmp_path / "dataset"
+    dataset_dir.mkdir()
+
+    (dataset_dir / "labels.csv").write_text(
+        "sample_id,group\n"
+        "S1,tumor\n"
+        "S2,normal\n"
+    )
+
+    discovery_report = discover_dataset_files(dataset_dir)
+
+    result = select_input_files(discovery_report)
+
+    expression_row = result[result["role"] == "expression_matrix"].iloc[0]
+
+    assert expression_row["selection_status"] == "requires_review"
+    assert "no high-confidence expression_matrix candidate" in expression_row["reason"]
+
+
+def test_select_input_files_requires_review_when_multiple_expression_candidates(tmp_path):
+    from src.dataset_intake.file_discovery import select_input_files
+
+    dataset_dir = tmp_path / "dataset"
+    dataset_dir.mkdir()
+
+    gene_columns = ",".join([f"G{i}" for i in range(1, 31)])
+    expression_values = ",".join(str(i) for i in range(1, 31))
+
+    for file_name in ["expression_matrix.csv", "gene_counts.csv"]:
+        (dataset_dir / file_name).write_text(
+            f"sample_id,{gene_columns}\n"
+            f"S1,{expression_values}\n"
+            f"S2,{expression_values}\n"
+            f"S3,{expression_values}\n"
+            f"S4,{expression_values}\n"
+            f"S5,{expression_values}\n"
+        )
+
+    (dataset_dir / "metadata.csv").write_text(
+        "sample_id,group\n"
+        "S1,tumor\n"
+        "S2,normal\n"
+        "S3,tumor\n"
+        "S4,normal\n"
+        "S5,tumor\n"
+    )
+
+    discovery_report = discover_dataset_files(dataset_dir)
+
+    result = select_input_files(discovery_report)
+
+    expression_row = result[result["role"] == "expression_matrix"].iloc[0]
+
+    assert expression_row["selection_status"] == "requires_review"
+    assert "multiple high-confidence expression_matrix candidates" in expression_row["reason"]
+
+
+def _create_dataset_with_unique_expression_and_metadata(tmp_path):
+    dataset_dir = tmp_path / "dataset"
+    dataset_dir.mkdir()
+
+    gene_columns = ",".join([f"G{i}" for i in range(1, 31)])
+    expression_values = ",".join(str(i) for i in range(1, 31))
+
+    (dataset_dir / "expression_matrix.csv").write_text(
+        f"sample_id,{gene_columns}\n"
+        f"S1,{expression_values}\n"
+        f"S2,{expression_values}\n"
+        f"S3,{expression_values}\n"
+        f"S4,{expression_values}\n"
+        f"S5,{expression_values}\n"
+    )
+
+    (dataset_dir / "metadata.csv").write_text(
+        "sample_id,group\n"
+        "S1,tumor\n"
+        "S2,normal\n"
+        "S3,tumor\n"
+        "S4,normal\n"
+        "S5,tumor\n"
+    )
+
+    return dataset_dir

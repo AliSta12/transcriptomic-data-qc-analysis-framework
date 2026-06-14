@@ -434,3 +434,77 @@ def _contains_any_keyword(filename: str, keywords: set[str]) -> bool:
     }
 
     return any(keyword in filename_parts for keyword in keywords)
+
+
+def select_input_files(discovery_report: pd.DataFrame) -> pd.DataFrame:
+    """
+    Select expression matrix and metadata files from a discovery report.
+
+    Automatic selection is conservative:
+    - exactly one high-confidence expression matrix candidate is required,
+    - exactly one high-confidence metadata candidate is required.
+
+    If this condition is not met, the role is marked as requires_review.
+    """
+    expression_candidates = discovery_report[
+        (discovery_report["predicted_role"] == "expression_matrix")
+        & (discovery_report["confidence"] == "high")
+    ]
+
+    metadata_candidates = discovery_report[
+        (discovery_report["predicted_role"] == "metadata")
+        & (discovery_report["confidence"] == "high")
+    ]
+
+    selected_expression = _select_unique_high_confidence_candidate(
+        candidates=expression_candidates,
+        role="expression_matrix",
+    )
+    selected_metadata = _select_unique_high_confidence_candidate(
+        candidates=metadata_candidates,
+        role="metadata",
+    )
+
+    return pd.DataFrame(
+        [selected_expression, selected_metadata],
+        columns=[
+            "role",
+            "file_path",
+            "selection_status",
+            "confidence",
+            "reason",
+        ],
+    )
+
+
+def _select_unique_high_confidence_candidate(
+    candidates: pd.DataFrame,
+    role: str,
+) -> dict:
+    if len(candidates) == 1:
+        candidate = candidates.iloc[0]
+
+        return {
+            "role": role,
+            "file_path": candidate["file_path"],
+            "selection_status": "auto_selected",
+            "confidence": candidate["confidence"],
+            "reason": f"exactly one high-confidence {role} candidate found",
+        }
+
+    if len(candidates) == 0:
+        return {
+            "role": role,
+            "file_path": "",
+            "selection_status": "requires_review",
+            "confidence": "low",
+            "reason": f"no high-confidence {role} candidate found",
+        }
+
+    return {
+        "role": role,
+        "file_path": "",
+        "selection_status": "requires_review",
+        "confidence": "medium",
+        "reason": f"multiple high-confidence {role} candidates found",
+    }
