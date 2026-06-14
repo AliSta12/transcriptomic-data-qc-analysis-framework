@@ -285,3 +285,35 @@ def test_save_intake_outputs_writes_expected_csv_files(tmp_path):
     assert "metadata_score" in intake_report_text
     assert "selection_status" in selected_files_text
     assert "auto_selected" in selected_files_text
+
+
+def test_run_dataset_intake_runs_complete_workflow(tmp_path):
+    from src.dataset_intake.file_discovery import run_dataset_intake
+
+    dataset_dir = _create_dataset_with_unique_expression_and_metadata(tmp_path)
+    output_dir = tmp_path / "intake_outputs"
+
+    result = run_dataset_intake(
+        dataset_directory=dataset_dir,
+        output_directory=output_dir,
+    )
+
+    assert "discovery_report" in result
+    assert "selected_files" in result
+    assert "output_paths" in result
+
+    assert not result["discovery_report"].empty
+    assert not result["selected_files"].empty
+
+    assert Path(result["output_paths"]["dataset_intake_report"]).exists()
+    assert Path(result["output_paths"]["selected_input_files"]).exists()
+
+    statuses = dict(
+        zip(
+            result["selected_files"]["role"],
+            result["selected_files"]["selection_status"],
+        )
+    )
+
+    assert statuses["expression_matrix"] == "auto_selected"
+    assert statuses["metadata"] == "auto_selected"

@@ -535,3 +535,35 @@ def save_intake_outputs(
         "dataset_intake_report": str(intake_report_path),
         "selected_input_files": str(selected_files_path),
     }
+
+
+def run_dataset_intake(
+    dataset_directory: str | Path,
+    output_directory: str | Path,
+) -> dict:
+    """
+    Run the complete Dataset Intake v1 workflow.
+
+    Steps:
+    1. Discover candidate files in a local dataset directory.
+    2. Select input files conservatively when high-confidence candidates are unique.
+    3. Save Dataset Intake output artifacts.
+
+    Returns a dictionary containing:
+    - discovery_report DataFrame,
+    - selected_files DataFrame,
+    - output_paths dictionary.
+    """
+    discovery_report = discover_dataset_files(dataset_directory)
+    selected_files = select_input_files(discovery_report)
+    output_paths = save_intake_outputs(
+        discovery_report=discovery_report,
+        selected_files=selected_files,
+        output_directory=output_directory,
+    )
+
+    return {
+        "discovery_report": discovery_report,
+        "selected_files": selected_files,
+        "output_paths": output_paths,
+    }
