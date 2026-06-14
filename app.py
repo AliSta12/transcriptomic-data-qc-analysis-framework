@@ -40,6 +40,28 @@ def read_uploaded_file(uploaded_file) -> pd.DataFrame:
     raise ValueError("Unsupported file format.")
 
 
+def read_local_table_file(file_path: str | Path) -> pd.DataFrame:
+    path = Path(file_path)
+    filename = path.name.lower()
+
+    if filename.endswith(".csv"):
+        return pd.read_csv(path)
+
+    if filename.endswith(".csv.gz"):
+        return pd.read_csv(path, compression="gzip")
+
+    if filename.endswith(".tsv"):
+        return pd.read_csv(path, sep="\t")
+
+    if filename.endswith(".tsv.gz"):
+        return pd.read_csv(path, sep="\t", compression="gzip")
+
+    if filename.endswith(".xlsx"):
+        return pd.read_excel(path)
+
+    raise ValueError(f"Unsupported file format selected by Dataset Intake: {path.name}")
+
+
 st.header("0. Dataset Intake")
 
 st.caption(
@@ -130,6 +152,32 @@ with st.expander("Run Dataset Intake on a local dataset folder", expanded=False)
             width="stretch",
         )
 
+        if auto_selected_count == 2:
+            if st.button("Use selected files for Data Cleaner"):
+                expression_row = selected_files[
+                    selected_files["role"] == "expression_matrix"
+                ].iloc[0]
+                metadata_row = selected_files[
+                    selected_files["role"] == "metadata"
+                ].iloc[0]
+
+                st.session_state["use_dataset_intake_files"] = True
+                st.session_state["dataset_intake_expression_path"] = expression_row["file_path"]
+                st.session_state["dataset_intake_metadata_path"] = metadata_row["file_path"]
+
+                st.session_state.pop("cleaner_result", None)
+                st.session_state.pop("analysis_result", None)
+                st.session_state.pop("uploaded_files_signature", None)
+
+                st.success(
+                    "Selected Dataset Intake files will be used in the Data Cleaner section."
+                )
+        else:
+            st.info(
+                "Dataset Intake did not auto-select both required files. "
+                "Please use manual upload or review the detected files."
+            )
+
         with st.expander("Show detailed Dataset Intake discovery report", expanded=False):
             st.caption(
                 "Full audit-style report with file scores, preview statistics, "
@@ -172,19 +220,39 @@ st.info(
     """
 )
 
-use_demo_dataset = st.checkbox(
-    "Use prepared GEO demo dataset",
-    value=False,
-    help=(
-        "Loads the processed GEO GSE15852 expression matrix and metadata "
-        "from the local data/processed directory."
-    ),
-)
+use_intake_files = st.session_state.get("use_dataset_intake_files", False)
+
+if use_intake_files:
+    st.info(
+        "Using files selected by Dataset Intake. "
+        "You can clear this selection to return to manual upload or demo dataset."
+    )
+
+    col_clear_intake, _ = st.columns([1, 3])
+    with col_clear_intake:
+        if st.button("Clear Dataset Intake selection"):
+            st.session_state["use_dataset_intake_files"] = False
+            st.session_state.pop("dataset_intake_expression_path", None)
+            st.session_state.pop("dataset_intake_metadata_path", None)
+            st.session_state.pop("uploaded_files_signature", None)
+            st.rerun()
+
+use_demo_dataset = False
+
+if not use_intake_files:
+    use_demo_dataset = st.checkbox(
+        "Use prepared GEO demo dataset",
+        value=False,
+        help=(
+            "Loads the processed GEO GSE15852 expression matrix and metadata "
+            "from the local data/processed directory."
+        ),
+    )
 
 expression_file = None
 metadata_file = None
 
-if not use_demo_dataset:
+if not use_intake_files and not use_demo_dataset:
     expression_file = st.file_uploader(
         "Upload expression matrix",
         type=["csv", "tsv", "xlsx"],
@@ -194,14 +262,15 @@ if not use_demo_dataset:
         "Upload metadata file",
         type=["csv", "tsv", "xlsx"],
     )
-else:
+elif use_demo_dataset:
     st.info(
         "Prepared GEO demo dataset selected: "
         "data/processed/geo_gse15852/expression_matrix.tsv and metadata.tsv"
     )
 
 input_files_available = (
-    use_demo_dataset
+    use_intake_files
+    or use_demo_dataset
     or (
         expression_file is not None
         and metadata_file is not None
@@ -209,7 +278,22 @@ input_files_available = (
 )
 
 if input_files_available:
-    if use_demo_dataset:
+    if use_intake_files:
+        intake_expression_path = Path(
+            st.session_state["dataset_intake_expression_path"]
+        )
+        intake_metadata_path = Path(
+            st.session_state["dataset_intake_metadata_path"]
+        )
+
+        uploaded_files_signature = (
+            "dataset_intake",
+            str(intake_expression_path),
+            intake_expression_path.stat().st_size,
+            str(intake_metadata_path),
+            intake_metadata_path.stat().st_size,
+        )
+    elif use_demo_dataset:
         demo_expression_path = Path(
             "data/processed/geo_gse15852/expression_matrix.tsv"
         )
@@ -241,7 +325,10 @@ if input_files_available:
         start_time = time.time()
 
         with st.spinner("Reading input files..."):
-            if use_demo_dataset:
+            if use_intake_files:
+                expression_df = read_local_table_file(intake_expression_path)
+                metadata_df = read_local_table_file(intake_metadata_path)
+            elif use_demo_dataset:
                 expression_df = pd.read_csv(
                     demo_expression_path,
                     sep="\t",
@@ -261,7 +348,9 @@ if input_files_available:
         st.session_state["metadata_df"] = metadata_df
         st.session_state["raw_preview_load_time"] = elapsed_time
 
-        if use_demo_dataset:
+        if use_intake_files:
+            st.session_state["dataset_name"] = intake_expression_path.name
+        elif use_demo_dataset:
             st.session_state["dataset_name"] = "GEO GSE15852 Demo Dataset"
         else:
             st.session_state["dataset_name"] = expression_file.name
