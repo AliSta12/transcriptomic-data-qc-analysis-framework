@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.decomposition import PCA
 
+from src.analysis_engine.group_colors import get_group_color_map
+
 
 @dataclass
 class PCAAnalysisResult:
@@ -74,7 +76,12 @@ class PCAAnalysis:
 
         plt.figure(figsize=(10, 7))
 
-        for group in pca_dataframe["group"].dropna().unique():
+        groups = sorted(
+            pca_dataframe["group"].dropna().unique()
+        )
+        group_color_map = get_group_color_map(groups)
+
+        for group in groups:
             group_data = pca_dataframe[
                 pca_dataframe["group"] == group
             ]
@@ -84,6 +91,9 @@ class PCAAnalysis:
                 group_data["PC2"],
                 s=70,
                 alpha=0.8,
+                color=group_color_map[group],
+                edgecolor="white",
+                linewidth=0.6,
                 label=f"{group} (n={len(group_data)})",
             )
 

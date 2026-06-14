@@ -97,3 +97,35 @@ def test_sample_clustering_requires_numeric_gene_columns(tmp_path):
         assert "Non-numeric columns detected" in str(error)
     else:
         raise AssertionError("Expected ValueError was not raised.")
+
+
+def test_sample_clustering_adds_group_annotation_when_metadata_available(tmp_path):
+    expression_df = pd.DataFrame(
+        {
+            "sample_id": ["S1", "S2", "S3", "S4"],
+            "GENE1": [1.0, 1.2, 8.0, 8.2],
+            "GENE2": [2.0, 2.1, 9.0, 9.1],
+        }
+    )
+
+    metadata_df = pd.DataFrame(
+        {
+            "sample_id": ["S1", "S2", "S3", "S4"],
+            "group": ["A", "A", "B", "B"],
+        }
+    )
+
+    result = SampleClustering().generate(
+        expression_df=expression_df,
+        metadata_df=metadata_df,
+        output_directory=str(tmp_path),
+    )
+
+    assert (tmp_path / "sample_clustering_dendrogram.png").exists()
+
+    annotation_status = result.summary_dataframe.loc[
+        result.summary_dataframe["metric"] == "group_annotation_available",
+        "value",
+    ].iloc[0]
+
+    assert annotation_status is True

@@ -2,7 +2,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+from matplotlib.colors import LinearSegmentedColormap
 
 MAX_SAMPLE_LABELS_FOR_HEATMAP = 50
 
@@ -63,11 +65,32 @@ class HeatmapGenerator:
             sample_count <= MAX_SAMPLE_LABELS_FOR_HEATMAP
         )
 
+        expression_cmap = LinearSegmentedColormap.from_list(
+            "pastel_expression",
+            [
+                "#4fb3bf",
+                "#f8fbfa",
+                "#ef767a",
+            ],
+        )
+
+        heatmap_array = heatmap_values.T.to_numpy()
+
+        vmin = np.percentile(heatmap_array, 5)
+        vmax = np.percentile(heatmap_array, 95)
+
+        if vmin == vmax:
+            vmin = float(heatmap_array.min())
+            vmax = float(heatmap_array.max())
+
         plt.figure(figsize=(16, 10))
 
         plt.imshow(
-            heatmap_values.T,
+            heatmap_array,
             aspect="auto",
+            cmap=expression_cmap,
+            vmin=vmin,
+            vmax=vmax,
         )
 
         plt.colorbar(

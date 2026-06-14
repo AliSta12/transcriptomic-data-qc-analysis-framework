@@ -4,6 +4,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from src.analysis_engine.group_colors import get_group_color_map
+
 
 @dataclass
 class ClassDistributionResult:
@@ -46,11 +48,20 @@ class ClassDistributionAnalysis:
         counts = list(group_distribution.values())
         total_samples = sum(counts)
 
+        group_color_map = get_group_color_map(groups)
+        bar_colors = [
+            group_color_map[group]
+            for group in groups
+        ]
+
         plt.figure(figsize=(9, 6))
 
         bars = plt.bar(
             groups,
             counts,
+            color=bar_colors,
+            edgecolor="white",
+            linewidth=1.0,
         )
 
         plt.title(

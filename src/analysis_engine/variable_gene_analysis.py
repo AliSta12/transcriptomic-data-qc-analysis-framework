@@ -3,6 +3,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
+from matplotlib.colors import LinearSegmentedColormap
 
 
 @dataclass
@@ -62,11 +63,40 @@ class VariableGeneAnalysis:
         top_50_genes.to_csv(top_50_path, index=False)
         top_100_genes.to_csv(top_100_path, index=False)
 
+        variance_cmap = LinearSegmentedColormap.from_list(
+            "pastel_variance",
+            [
+                "#d9f3f2",
+                "#7bd3d0",
+                "#168aad",
+            ],
+        )
+
+        variance_values = top_50_genes["variance"]
+
+        if variance_values.max() == variance_values.min():
+            bar_colors = [
+                "#b197fc"
+                for _ in variance_values
+            ]
+        else:
+            normalized_variance = (
+                (variance_values - variance_values.min()) /
+                (variance_values.max() - variance_values.min())
+            )
+            bar_colors = [
+                variance_cmap(value)
+                for value in normalized_variance
+            ]
+
         plt.figure(figsize=(14, 7))
 
         plt.bar(
             top_50_genes["gene"],
             top_50_genes["variance"],
+            color=bar_colors,
+            edgecolor="white",
+            linewidth=0.8,
         )
 
         plt.title("Top 50 Most Variable Genes (Exploratory Ranking)")

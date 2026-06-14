@@ -89,6 +89,7 @@ class AnalysisEnginePipeline:
 
         sample_clustering = SampleClustering().generate(
             expression_df=expression_df,
+            metadata_df=metadata_df,
             output_directory=output_directory,
         )
 
