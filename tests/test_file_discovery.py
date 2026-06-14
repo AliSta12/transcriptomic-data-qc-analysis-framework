@@ -249,3 +249,39 @@ def _create_dataset_with_unique_expression_and_metadata(tmp_path):
     )
 
     return dataset_dir
+
+
+def test_save_intake_outputs_writes_expected_csv_files(tmp_path):
+    from src.dataset_intake.file_discovery import (
+        save_intake_outputs,
+        select_input_files,
+    )
+
+    dataset_dir = _create_dataset_with_unique_expression_and_metadata(tmp_path)
+    discovery_report = discover_dataset_files(dataset_dir)
+    selected_files = select_input_files(discovery_report)
+
+    output_dir = tmp_path / "outputs"
+
+    result = save_intake_outputs(
+        discovery_report=discovery_report,
+        selected_files=selected_files,
+        output_directory=output_dir,
+    )
+
+    intake_report_path = Path(result["dataset_intake_report"])
+    selected_files_path = Path(result["selected_input_files"])
+
+    assert intake_report_path.exists()
+    assert selected_files_path.exists()
+
+    assert intake_report_path.name == "dataset_intake_report.csv"
+    assert selected_files_path.name == "selected_input_files.csv"
+
+    intake_report_text = intake_report_path.read_text()
+    selected_files_text = selected_files_path.read_text()
+
+    assert "expression_score" in intake_report_text
+    assert "metadata_score" in intake_report_text
+    assert "selection_status" in selected_files_text
+    assert "auto_selected" in selected_files_text

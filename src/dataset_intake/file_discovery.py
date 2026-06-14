@@ -508,3 +508,30 @@ def _select_unique_high_confidence_candidate(
         "confidence": "medium",
         "reason": f"multiple high-confidence {role} candidates found",
     }
+
+
+def save_intake_outputs(
+    discovery_report: pd.DataFrame,
+    selected_files: pd.DataFrame,
+    output_directory: str | Path,
+) -> dict[str, str]:
+    """
+    Save Dataset Intake output artifacts.
+
+    Generated files:
+    - dataset_intake_report.csv
+    - selected_input_files.csv
+    """
+    output_path = Path(output_directory)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    intake_report_path = output_path / "dataset_intake_report.csv"
+    selected_files_path = output_path / "selected_input_files.csv"
+
+    discovery_report.to_csv(intake_report_path, index=False)
+    selected_files.to_csv(selected_files_path, index=False)
+
+    return {
+        "dataset_intake_report": str(intake_report_path),
+        "selected_input_files": str(selected_files_path),
+    }
