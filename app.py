@@ -88,14 +88,14 @@ if expression_file is not None and metadata_file is not None:
         st.write("Raw expression matrix")
         st.dataframe(
             expression_df.head(),
-            use_container_width=True,
+            width="stretch",
         )
 
     with col2:
         st.write("Raw metadata")
         st.dataframe(
             metadata_df.head(),
-            use_container_width=True,
+            width="stretch",
         )
 
     st.header("2. Run Data Cleaner")
@@ -146,7 +146,7 @@ if "cleaner_result" in st.session_state:
 
         st.dataframe(
             result.data_readiness_report,
-            use_container_width=True,
+            width="stretch",
         )
 
     with st.expander("Data quality report"):
@@ -156,7 +156,7 @@ if "cleaner_result" in st.session_state:
         )
         st.dataframe(
             result.data_quality_report,
-            use_container_width=True,
+            width="stretch",
         )
 
     with st.expander("Harmonization report"):
@@ -166,7 +166,7 @@ if "cleaner_result" in st.session_state:
         )
         st.dataframe(
             result.harmonization_report,
-            use_container_width=True,
+            width="stretch",
         )
 
     with st.expander("Audit log"):
@@ -176,7 +176,7 @@ if "cleaner_result" in st.session_state:
         )
         st.dataframe(
             result.audit_log,
-            use_container_width=True,
+            width="stretch",
         )
 
     with st.expander("Cleaned expression matrix preview"):
@@ -186,7 +186,7 @@ if "cleaner_result" in st.session_state:
         )
         st.dataframe(
             result.cleaned_expression_matrix.head(),
-            use_container_width=True,
+            width="stretch",
         )
 
     with st.expander("Clean metadata preview"):
@@ -196,7 +196,7 @@ if "cleaner_result" in st.session_state:
         )
         st.dataframe(
             result.clean_metadata.head(),
-            use_container_width=True,
+            width="stretch",
         )
 
 if "cleaner_result" in st.session_state:
@@ -267,7 +267,7 @@ if "analysis_result" in st.session_state:
         )
         st.dataframe(
             analysis.dataset_overview.summary_dataframe,
-            use_container_width=True,
+            width="stretch",
         )
 
     with class_tab:
@@ -278,7 +278,7 @@ if "analysis_result" in st.session_state:
         )
         st.image(
             analysis.class_distribution.plot_path,
-            use_container_width=True,
+            width="stretch",
         )
 
     with pca_tab:
@@ -290,7 +290,7 @@ if "analysis_result" in st.session_state:
         )
         st.image(
             analysis.pca_analysis.plot_path,
-            use_container_width=True,
+            width="stretch",
         )
 
     with variable_genes_tab:
@@ -301,7 +301,7 @@ if "analysis_result" in st.session_state:
         )
         st.image(
             analysis.variable_gene_analysis.barplot_path,
-            use_container_width=True,
+            width="stretch",
         )
 
     with heatmap_tab:
@@ -312,7 +312,7 @@ if "analysis_result" in st.session_state:
         )
         st.image(
             analysis.heatmap.plot_path,
-            use_container_width=True,
+            width="stretch",
         )
 
     with clustering_tab:
@@ -323,7 +323,7 @@ if "analysis_result" in st.session_state:
         )
         st.image(
             analysis.sample_clustering.plot_path,
-            use_container_width=True,
+            width="stretch",
         )
 
     with summary_tab:
@@ -333,7 +333,7 @@ if "analysis_result" in st.session_state:
         )
         st.dataframe(
             analysis.analysis_summary.summary_dataframe,
-            use_container_width=True,
+            width="stretch",
         )
 
     st.header("6. Final PDF Report")
