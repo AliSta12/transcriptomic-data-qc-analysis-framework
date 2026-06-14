@@ -8,7 +8,6 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import (
     Image,
     KeepTogether,
-    PageBreak,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -184,7 +183,7 @@ class FinalAnalysisReportGenerator:
             analysis_result.analysis_summary.summary_dataframe,
         )
 
-        story.append(PageBreak())
+        story.append(Spacer(1, 10))
 
         image_items = [
             (
