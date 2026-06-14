@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import (
     Image,
@@ -34,7 +34,7 @@ class FinalAnalysisReportGenerator:
         canvas.saveState()
         canvas.setFont("Helvetica", 8)
         canvas.drawRightString(
-            A4[0] - 40,
+            landscape(A4)[0] - 40,
             20,
             f"Page {page_number}",
         )
@@ -72,7 +72,7 @@ class FinalAnalysisReportGenerator:
 
         doc = SimpleDocTemplate(
             str(pdf_path),
-            pagesize=A4,
+            pagesize=landscape(A4),
             rightMargin=40,
             leftMargin=40,
             topMargin=40,
@@ -188,18 +188,52 @@ class FinalAnalysisReportGenerator:
         story.append(Paragraph("6. Visualizations", styles["Heading1"]))
         story.append(Spacer(1, 12))
 
-        image_paths = [
-            cleaner_result.missing_data_plot_path,
-            cleaner_result.qc_status_summary_plot_path,
-            analysis_result.class_distribution.plot_path,
-            analysis_result.pca_analysis.plot_path,
-            analysis_result.variable_gene_analysis.barplot_path,
-            analysis_result.heatmap.plot_path,
-            analysis_result.sample_clustering.plot_path,
+        image_items = [
+            (
+                cleaner_result.missing_data_plot_path,
+                "MISSING DATA SUMMARY",
+                "Shows whether missing values were detected in the uploaded expression matrix.",
+            ),
+            (
+                cleaner_result.qc_status_summary_plot_path,
+                "QC STATUS SUMMARY",
+                "Summarizes PASS, WARNING, FAIL and REQUIRES REVIEW statuses across quality checks.",
+            ),
+            (
+                analysis_result.class_distribution.plot_path,
+                "CLASS DISTRIBUTION",
+                "Shows the number and percentage of samples in each biological group.",
+            ),
+            (
+                analysis_result.pca_analysis.plot_path,
+                "PCA ANALYSIS",
+                "Visualizes sample-level structure using the first two principal components.",
+            ),
+            (
+                analysis_result.variable_gene_analysis.barplot_path,
+                "TOP VARIABLE GENES",
+                "Ranks the top 50 genes by variance for exploratory visualization.",
+            ),
+            (
+                analysis_result.heatmap.plot_path,
+                "HEATMAP OF TOP VARIABLE GENES",
+                "Shows expression patterns across samples for the top 50 most variable genes.",
+            ),
+            (
+                analysis_result.sample_clustering.plot_path,
+                "SAMPLE CLUSTERING DENDROGRAM",
+                "Groups samples based on similarity of expression profiles.",
+            ),
         ]
 
-        for image_path in image_paths:
-            self._add_image(story, styles, image_path)
+        for image_path, image_title, image_caption in image_items:
+            self._add_image(
+                story=story,
+                styles=styles,
+                image_path=image_path,
+                title=image_title,
+                caption=image_caption,
+            )
 
         self._add_section(
             story,
@@ -288,13 +322,20 @@ class FinalAnalysisReportGenerator:
             table_data.append(formatted_row)
         return table_data
 
-    def _add_image(self, story, styles, image_path: str) -> None:
+    def _add_image(
+        self,
+        story,
+        styles,
+        image_path: str,
+        title: str,
+        caption: str,
+    ) -> None:
         path = Path(image_path)
 
         if not path.exists():
             story.append(
                 Paragraph(
-                    f"Missing visualization: {image_path}",
+                    f"Missing visualization: {title}",
                     styles["Normal"],
                 )
             )
@@ -302,14 +343,16 @@ class FinalAnalysisReportGenerator:
             return
 
         image = Image(str(path))
-        image._restrictSize(460, 300)
+        image._restrictSize(700, 360)
 
         image_block = KeepTogether(
             [
-                Paragraph(path.name, styles["Heading2"]),
+                Paragraph(title, styles["Heading2"]),
+                Spacer(1, 4),
+                Paragraph(caption, styles["Normal"]),
                 Spacer(1, 6),
                 image,
-                Spacer(1, 18),
+                Spacer(1, 14),
             ]
         )
 
