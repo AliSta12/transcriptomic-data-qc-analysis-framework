@@ -65,16 +65,41 @@ metadata_file = st.file_uploader(
 )
 
 if expression_file is not None and metadata_file is not None:
-    start_time = time.time()
+    uploaded_files_signature = (
+        expression_file.name,
+        expression_file.size,
+        metadata_file.name,
+        metadata_file.size,
+    )
 
-    with st.spinner("Loading uploaded files and preparing raw data preview..."):
-        expression_df = read_uploaded_file(expression_file)
-        metadata_df = read_uploaded_file(metadata_file)
+    files_changed = (
+        st.session_state.get("uploaded_files_signature")
+        != uploaded_files_signature
+    )
 
-    elapsed_time = time.time() - start_time
+    if files_changed:
+        start_time = time.time()
+
+        with st.spinner("Reading uploaded files..."):
+            expression_df = read_uploaded_file(expression_file)
+            metadata_df = read_uploaded_file(metadata_file)
+
+        elapsed_time = time.time() - start_time
+
+        st.session_state["uploaded_files_signature"] = uploaded_files_signature
+        st.session_state["expression_df"] = expression_df
+        st.session_state["metadata_df"] = metadata_df
+        st.session_state["raw_preview_load_time"] = elapsed_time
+
+        st.session_state.pop("cleaner_result", None)
+        st.session_state.pop("analysis_result", None)
+
+    expression_df = st.session_state["expression_df"]
+    metadata_df = st.session_state["metadata_df"]
 
     st.success(
-        f"Uploaded files loaded successfully in {elapsed_time:.2f} seconds."
+        "Uploaded files are ready for preview "
+        f"({st.session_state['raw_preview_load_time']:.2f} seconds)."
     )
 
     st.subheader("Input preview")
@@ -104,7 +129,7 @@ if expression_file is not None and metadata_file is not None:
         try:
             start_time = time.time()
 
-            with st.spinner("Running rule-based data cleaning and QC..."):
+            with st.spinner("Running rule-based cleaning and QC..."):
                 cleaner = DataCleanerPipeline()
                 result = cleaner.run(
                     expression_df=expression_df,
@@ -114,6 +139,7 @@ if expression_file is not None and metadata_file is not None:
             elapsed_time = time.time() - start_time
 
             st.session_state["cleaner_result"] = result
+            st.session_state.pop("analysis_result", None)
 
             st.success(
                 f"Data Cleaner finished successfully in {elapsed_time:.2f} seconds. "
