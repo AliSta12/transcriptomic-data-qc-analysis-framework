@@ -341,3 +341,117 @@ def test_discover_dataset_files_supports_compressed_csv(tmp_path):
     assert result.iloc[0]["file_type"] == "csv.gz"
     assert result.iloc[0]["predicted_role"] == "expression_matrix"
     assert result.iloc[0]["column_count"] == 22
+
+
+def test_select_input_files_requires_review_when_no_supported_files(tmp_path):
+    from src.dataset_intake.file_discovery import select_input_files
+
+    dataset_dir = tmp_path / "dataset"
+    dataset_dir.mkdir()
+
+    (dataset_dir / "README.md").write_text("documentation")
+    (dataset_dir / "notes.pdf").write_text("not a supported tabular file")
+
+    discovery_report = discover_dataset_files(dataset_dir)
+
+    result = select_input_files(discovery_report)
+
+    statuses = dict(zip(result["role"], result["selection_status"]))
+
+    assert discovery_report.empty
+    assert statuses["expression_matrix"] == "requires_review"
+    assert statuses["metadata"] == "requires_review"
+
+
+def test_select_input_files_requires_review_when_metadata_missing(tmp_path):
+    from src.dataset_intake.file_discovery import select_input_files
+
+    dataset_dir = tmp_path / "dataset"
+    dataset_dir.mkdir()
+
+    gene_columns = ",".join([f"G{i}" for i in range(1, 31)])
+    expression_values = ",".join(str(i) for i in range(1, 31))
+
+    (dataset_dir / "expression_matrix.csv").write_text(
+        f"sample_id,{gene_columns}\n"
+        f"S1,{expression_values}\n"
+        f"S2,{expression_values}\n"
+        f"S3,{expression_values}\n"
+        f"S4,{expression_values}\n"
+        f"S5,{expression_values}\n"
+    )
+
+    discovery_report = discover_dataset_files(dataset_dir)
+
+    result = select_input_files(discovery_report)
+
+    metadata_row = result[result["role"] == "metadata"].iloc[0]
+
+    assert metadata_row["selection_status"] == "requires_review"
+    assert "no high-confidence metadata candidate" in metadata_row["reason"]
+
+
+def test_select_input_files_requires_review_when_multiple_metadata_candidates(tmp_path):
+    from src.dataset_intake.file_discovery import select_input_files
+
+    dataset_dir = tmp_path / "dataset"
+    dataset_dir.mkdir()
+
+    gene_columns = ",".join([f"G{i}" for i in range(1, 31)])
+    expression_values = ",".join(str(i) for i in range(1, 31))
+
+    (dataset_dir / "expression_matrix.csv").write_text(
+        f"sample_id,{gene_columns}\n"
+        f"S1,{expression_values}\n"
+        f"S2,{expression_values}\n"
+        f"S3,{expression_values}\n"
+        f"S4,{expression_values}\n"
+        f"S5,{expression_values}\n"
+    )
+
+    for file_name in ["metadata.csv", "sample_labels.csv"]:
+        (dataset_dir / file_name).write_text(
+            "sample_id,group,batch\n"
+            "S1,tumor,A\n"
+            "S2,normal,A\n"
+            "S3,tumor,B\n"
+            "S4,normal,B\n"
+            "S5,tumor,C\n"
+        )
+
+    discovery_report = discover_dataset_files(dataset_dir)
+
+    result = select_input_files(discovery_report)
+
+    metadata_row = result[result["role"] == "metadata"].iloc[0]
+
+    assert metadata_row["selection_status"] == "requires_review"
+    assert "multiple high-confidence metadata candidates" in metadata_row["reason"]
+
+
+def test_compressed_mixed_format_file_requires_review(tmp_path):
+    import gzip
+
+    from src.dataset_intake.file_discovery import select_input_files
+
+    dataset_dir = tmp_path / "dataset"
+    dataset_dir.mkdir()
+
+    mixed_file = dataset_dir / "GSE_series_matrix.txt.gz"
+
+    with gzip.open(mixed_file, "wt") as file:
+        file.write("!Series_title\tExample dataset\n")
+        file.write("!Sample_title\tS1\tS2\tS3\n")
+        file.write("ID_REF\tS1\tS2\tS3\n")
+        file.write("G1\t1\t2\t3\n")
+        file.write("G2\t4\t5\t6\n")
+
+    discovery_report = discover_dataset_files(dataset_dir)
+
+    result = select_input_files(discovery_report)
+
+    statuses = dict(zip(result["role"], result["selection_status"]))
+
+    assert "GSE_series_matrix.txt.gz" in set(discovery_report["file_name"])
+    assert statuses["expression_matrix"] == "requires_review"
+    assert statuses["metadata"] == "requires_review"
