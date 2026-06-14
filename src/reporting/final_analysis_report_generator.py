@@ -173,20 +173,18 @@ class FinalAnalysisReportGenerator:
         self._add_dataframe_section(
             story,
             styles,
-            "Data Readiness Assessment",
+            "5. Data Readiness Assessment",
             cleaner_result.data_readiness_report,
         )
 
         self._add_dataframe_section(
             story,
             styles,
-            "5. Exploratory Transcriptomic Analysis",
+            "6. Exploratory Transcriptomic Analysis",
             analysis_result.analysis_summary.summary_dataframe,
         )
 
         story.append(PageBreak())
-        story.append(Paragraph("6. Visualizations", styles["Heading1"]))
-        story.append(Spacer(1, 12))
 
         image_items = [
             (
@@ -226,6 +224,34 @@ class FinalAnalysisReportGenerator:
             ),
         ]
 
+        story.append(
+            KeepTogether(
+                [
+                    Paragraph("7. QC Evidence and Exploratory Visualizations", styles["Heading1"]),
+                    Spacer(1, 12),
+                ]
+            )
+        )
+
+        self._add_qc_evidence_summary_box(
+            story=story,
+            styles=styles,
+            cleaner_result=cleaner_result,
+        )
+
+        image_items = [
+            item
+            for item in image_items
+            if item[1] != "QC STATUS SUMMARY"
+        ]
+
+        if self._missing_data_count_is_zero(cleaner_result.data_quality_report):
+            image_items = [
+                item
+                for item in image_items
+                if item[1] != "MISSING DATA SUMMARY"
+            ]
+
         for image_path, image_title, image_caption in image_items:
             self._add_image(
                 story=story,
@@ -238,11 +264,24 @@ class FinalAnalysisReportGenerator:
         self._add_section(
             story,
             styles,
-            "7. Conclusions",
+            "8. Biological Interpretation",
+            "PCA and hierarchical clustering summarize sample-level structure in the cleaned "
+            "expression matrix. The heatmap and variable gene ranking highlight genes with high "
+            "expression variability across samples. These results are intended for exploratory "
+            "interpretation and quality-oriented review, not for formal differential expression "
+            "testing or pathway-level biological conclusions.",
+        )
+
+        self._add_section(
+            story,
+            styles,
+            "9. Conclusions",
             f"The dataset readiness status is: {cleaner_result.final_status}. "
-            "The analysis should be interpreted as exploratory. PCA, variable gene ranking, "
-            "heatmap and hierarchical clustering provide an overview of sample structure and "
-            "expression variability, but they do not represent differential expression analysis.",
+            "QC results, harmonization outputs and exploratory analysis summaries should be "
+            "reviewed together before downstream biological interpretation. "
+            "PCA, variable gene ranking, heatmap and hierarchical clustering provide an overview "
+            "of sample structure and expression variability. These outputs are descriptive and "
+            "do not represent formal differential expression analysis.",
         )
 
         doc.build(
@@ -256,10 +295,15 @@ class FinalAnalysisReportGenerator:
         )
 
     def _add_section(self, story, styles, title: str, text: str) -> None:
-        story.append(Paragraph(title, styles["Heading1"]))
-        story.append(Spacer(1, 8))
-        story.append(Paragraph(text, styles["Normal"]))
-        story.append(Spacer(1, 16))
+        section_block = KeepTogether(
+            [
+                Paragraph(title, styles["Heading1"]),
+                Spacer(1, 8),
+                Paragraph(text, styles["Normal"]),
+                Spacer(1, 16),
+            ]
+        )
+        story.append(section_block)
 
     def _add_dataframe_section(
         self,
@@ -269,9 +313,6 @@ class FinalAnalysisReportGenerator:
         dataframe: pd.DataFrame,
         max_rows: int = 12,
     ) -> None:
-
-        story.append(Paragraph(title, styles["Heading1"]))
-        story.append(Spacer(1, 8))
 
         table_data = self._dataframe_to_table_data(
             dataframe=dataframe,
@@ -291,8 +332,16 @@ class FinalAnalysisReportGenerator:
             )
         )
 
-        story.append(table)
-        story.append(Spacer(1, 16))
+        section_block = KeepTogether(
+            [
+                Paragraph(title, styles["Heading1"]),
+                Spacer(1, 8),
+                table,
+                Spacer(1, 16),
+            ]
+        )
+
+        story.append(section_block)
 
     def _format_table_value(self, value) -> str:
         if pd.isna(value):
@@ -322,6 +371,226 @@ class FinalAnalysisReportGenerator:
             table_data.append(formatted_row)
         return table_data
 
+    def _get_qc_metric(
+        self,
+        data_quality_report: pd.DataFrame,
+        check_name: str,
+        default: str = "N/A",
+    ) -> str:
+        matching_rows = data_quality_report[
+            data_quality_report["check"] == check_name
+        ]
+
+        if matching_rows.empty:
+            return default
+
+        return self._format_table_value(
+            matching_rows.iloc[0]["metric"]
+        )
+
+    def _get_qc_status(
+        self,
+        data_quality_report: pd.DataFrame,
+        check_name: str,
+        default: str = "N/A",
+    ) -> str:
+        matching_rows = data_quality_report[
+            data_quality_report["check"] == check_name
+        ]
+
+        if matching_rows.empty:
+            return default
+
+        return self._format_table_value(
+            matching_rows.iloc[0]["status"]
+        )
+
+    def _get_qc_status_counts(
+        self,
+        data_quality_report: pd.DataFrame,
+    ) -> dict[str, int]:
+        statuses = (
+            data_quality_report["status"]
+            .fillna("")
+            .astype(str)
+            .str.upper()
+            .str.strip()
+        )
+
+        return {
+            "PASS": int((statuses == "PASS").sum()),
+            "WARNING": int((statuses == "WARNING").sum()),
+            "FAIL": int((statuses == "FAIL").sum()),
+            "REQUIRES REVIEW": int((statuses == "REQUIRES REVIEW").sum()),
+        }
+
+    def _add_qc_evidence_summary_box(
+        self,
+        story,
+        styles,
+        cleaner_result,
+    ) -> None:
+        data_quality_report = cleaner_result.data_quality_report
+        status_counts = self._get_qc_status_counts(data_quality_report)
+
+        missing_status = self._get_qc_status(
+            data_quality_report,
+            "Missing Data",
+        )
+        missing_count = self._get_qc_metric(
+            data_quality_report,
+            "Missing Data",
+        )
+        duplicate_gene_count = self._get_qc_metric(
+            data_quality_report,
+            "Duplicate Genes",
+        )
+        constant_gene_count = self._get_qc_metric(
+            data_quality_report,
+            "Constant Genes",
+        )
+        metadata_issue_count = self._get_qc_metric(
+            data_quality_report,
+            "Metadata Consistency",
+        )
+
+        if self._missing_data_count_is_zero(data_quality_report):
+            missing_action = (
+                "No imputation or removal was required because the missing "
+                "value count was 0."
+            )
+        else:
+            missing_action = (
+                "Missing data rules were applied according to predefined "
+                "thresholds and recorded in the QC outputs."
+            )
+
+        table_data = [
+            ["QC EVIDENCE SUMMARY", ""],
+            ["Overall readiness", cleaner_result.final_status],
+            [
+                "QC status counts",
+                (
+                    f"PASS: {status_counts['PASS']}; "
+                    f"WARNING: {status_counts['WARNING']}; "
+                    f"FAIL: {status_counts['FAIL']}; "
+                    f"REQUIRES REVIEW: {status_counts['REQUIRES REVIEW']}"
+                ),
+            ],
+            [
+                "Missing data",
+                f"Status: {missing_status}; detected missing values: {missing_count}",
+            ],
+            ["Rule-based action", missing_action],
+            [
+                "Cleaning / QC evidence",
+                (
+                    f"Duplicate genes: {duplicate_gene_count}; "
+                    f"constant genes: {constant_gene_count}; "
+                    f"metadata issues: {metadata_issue_count}"
+                ),
+            ],
+        ]
+
+        table = Table(
+            table_data,
+            colWidths=[150, 520],
+        )
+        table.setStyle(
+            TableStyle(
+                [
+                    ("SPAN", (0, 0), (-1, 0)),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ]
+            )
+        )
+
+        story.append(
+            KeepTogether(
+                [
+                    table,
+                    Spacer(1, 8),
+                    Paragraph(
+                        "This section summarizes rule-based QC evidence before "
+                        "the exploratory transcriptomic visualizations. Diagnostic "
+                        "plots are included when they add interpretive value.",
+                        styles["Normal"],
+                    ),
+                    Spacer(1, 14),
+                ]
+            )
+        )
+
+    def _missing_data_count_is_zero(
+        self,
+        data_quality_report: pd.DataFrame,
+    ) -> bool:
+        missing_data_rows = data_quality_report[
+            data_quality_report["check"] == "Missing Data"
+        ]
+
+        if missing_data_rows.empty:
+            return False
+
+        missing_value_count = missing_data_rows.iloc[0]["metric"]
+
+        try:
+            return float(missing_value_count) == 0
+        except (TypeError, ValueError):
+            return False
+
+    def _add_missing_data_summary_box(
+        self,
+        story,
+        styles,
+    ) -> None:
+        table_data = [
+            ["MISSING DATA SUMMARY"],
+            ["No missing values were detected in the expression matrix."],
+            [
+                "Rule-based action: no imputation or removal was required "
+                "because the missing value count was 0."
+            ],
+        ]
+
+        table = Table(
+            table_data,
+            colWidths=[520],
+        )
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
+        )
+
+        story.append(
+            KeepTogether(
+                [
+                    table,
+                    Spacer(1, 14),
+                ]
+            )
+        )
+
     def _add_image(
         self,
         story,
@@ -343,7 +612,7 @@ class FinalAnalysisReportGenerator:
             return
 
         image = Image(str(path))
-        image._restrictSize(700, 360)
+        image._restrictSize(700, 330)
 
         image_block = KeepTogether(
             [
