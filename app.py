@@ -54,23 +54,65 @@ st.info(
     """
 )
 
-expression_file = st.file_uploader(
-    "Upload expression matrix",
-    type=["csv", "tsv", "xlsx"],
+use_demo_dataset = st.checkbox(
+    "Use prepared GEO demo dataset",
+    value=False,
+    help=(
+        "Loads the processed GEO GSE15852 expression matrix and metadata "
+        "from the local data/processed directory."
+    ),
 )
 
-metadata_file = st.file_uploader(
-    "Upload metadata file",
-    type=["csv", "tsv", "xlsx"],
-)
+expression_file = None
+metadata_file = None
 
-if expression_file is not None and metadata_file is not None:
-    uploaded_files_signature = (
-        expression_file.name,
-        expression_file.size,
-        metadata_file.name,
-        metadata_file.size,
+if not use_demo_dataset:
+    expression_file = st.file_uploader(
+        "Upload expression matrix",
+        type=["csv", "tsv", "xlsx"],
     )
+
+    metadata_file = st.file_uploader(
+        "Upload metadata file",
+        type=["csv", "tsv", "xlsx"],
+    )
+else:
+    st.info(
+        "Prepared GEO demo dataset selected: "
+        "data/processed/geo_gse15852/expression_matrix.tsv and metadata.tsv"
+    )
+
+input_files_available = (
+    use_demo_dataset
+    or (
+        expression_file is not None
+        and metadata_file is not None
+    )
+)
+
+if input_files_available:
+    if use_demo_dataset:
+        demo_expression_path = Path(
+            "data/processed/geo_gse15852/expression_matrix.tsv"
+        )
+        demo_metadata_path = Path(
+            "data/processed/geo_gse15852/metadata.tsv"
+        )
+
+        uploaded_files_signature = (
+            "demo_geo_gse15852",
+            str(demo_expression_path),
+            demo_expression_path.stat().st_size,
+            str(demo_metadata_path),
+            demo_metadata_path.stat().st_size,
+        )
+    else:
+        uploaded_files_signature = (
+            expression_file.name,
+            expression_file.size,
+            metadata_file.name,
+            metadata_file.size,
+        )
 
     files_changed = (
         st.session_state.get("uploaded_files_signature")
@@ -80,9 +122,19 @@ if expression_file is not None and metadata_file is not None:
     if files_changed:
         start_time = time.time()
 
-        with st.spinner("Reading uploaded files..."):
-            expression_df = read_uploaded_file(expression_file)
-            metadata_df = read_uploaded_file(metadata_file)
+        with st.spinner("Reading input files..."):
+            if use_demo_dataset:
+                expression_df = pd.read_csv(
+                    demo_expression_path,
+                    sep="\t",
+                )
+                metadata_df = pd.read_csv(
+                    demo_metadata_path,
+                    sep="\t",
+                )
+            else:
+                expression_df = read_uploaded_file(expression_file)
+                metadata_df = read_uploaded_file(metadata_file)
 
         elapsed_time = time.time() - start_time
 
@@ -91,6 +143,11 @@ if expression_file is not None and metadata_file is not None:
         st.session_state["metadata_df"] = metadata_df
         st.session_state["raw_preview_load_time"] = elapsed_time
 
+        if use_demo_dataset:
+            st.session_state["dataset_name"] = "GEO GSE15852 Demo Dataset"
+        else:
+            st.session_state["dataset_name"] = expression_file.name
+
         st.session_state.pop("cleaner_result", None)
         st.session_state.pop("analysis_result", None)
 
@@ -98,7 +155,7 @@ if expression_file is not None and metadata_file is not None:
     metadata_df = st.session_state["metadata_df"]
 
     st.success(
-        "Uploaded files are ready for preview "
+        "Input files are ready for preview "
         f"({st.session_state['raw_preview_load_time']:.2f} seconds)."
     )
 
@@ -377,7 +434,10 @@ if "analysis_result" in st.session_state:
                 report_result = FinalAnalysisReportGenerator().generate(
                     cleaner_result=st.session_state["cleaner_result"],
                     analysis_result=st.session_state["analysis_result"],
-                    dataset_name=expression_file.name,
+                    dataset_name=st.session_state.get(
+                        "dataset_name",
+                        "Uploaded Dataset",
+                    ),
                     output_directory="outputs/streamlit_demo",
                 )
 
