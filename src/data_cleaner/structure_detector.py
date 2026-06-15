@@ -110,12 +110,17 @@ class StructureDetector:
         if dataframe.empty:
             return 0.0
 
+        non_missing_values = dataframe.notna().sum().sum()
+
+        if non_missing_values == 0:
+            return 0.0
+
         numeric_values = dataframe.apply(
             pd.to_numeric,
             errors="coerce",
         ).notna().sum().sum()
 
-        return numeric_values / dataframe.size
+        return numeric_values / non_missing_values
 
     @staticmethod
     def _normalize_text(value: object) -> str:

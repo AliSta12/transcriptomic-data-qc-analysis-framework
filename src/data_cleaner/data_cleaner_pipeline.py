@@ -87,23 +87,23 @@ class DataCleanerPipeline:
             reason="Analysis engine requires standardized sample x gene format.",
         )
 
-        # 4. Missing data handling
-        missing_handler = MissingDataHandler()
-        missing_result = missing_handler.apply_rules(
+        # 4. Duplicate detection
+        duplicate_detector = DuplicateDetector()
+        duplicate_result = duplicate_detector.apply_rules(
             harmonized_df,
             self.audit_logger,
         )
 
-        current_df = missing_result.cleaned_dataframe
+        current_df = duplicate_result.cleaned_dataframe
 
-        # 5. Duplicate detection
-        duplicate_detector = DuplicateDetector()
-        duplicate_result = duplicate_detector.apply_rules(
+        # 5. Missing data handling
+        missing_handler = MissingDataHandler()
+        missing_result = missing_handler.apply_rules(
             current_df,
             self.audit_logger,
         )
 
-        current_df = duplicate_result.cleaned_dataframe
+        current_df = missing_result.cleaned_dataframe
 
         # 6. Metadata consistency check
         metadata_checker = MetadataConsistencyChecker()
