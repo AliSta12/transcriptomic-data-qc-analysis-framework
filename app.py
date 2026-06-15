@@ -62,11 +62,11 @@ def read_local_table_file(file_path: str | Path) -> pd.DataFrame:
     raise ValueError(f"Unsupported file format selected by Dataset Intake: {path.name}")
 
 
-st.header("0. Dataset Intake")
+st.header("1. Select input files")
 
 st.caption(
-    "Optional rule-based scan of a locally downloaded public dataset folder. "
-    "This step helps identify candidate expression and metadata files before manual upload."
+    "Choose input files manually, use the prepared demo dataset, or scan a local "
+    "dataset folder to identify candidate expression and metadata files."
 )
 
 with st.expander("Run Dataset Intake on a local dataset folder", expanded=False):
@@ -312,11 +312,11 @@ if st.session_state.get("show_input_review", False):
         st.rerun()
 
 
-st.header("1. Upload input files")
+st.subheader("Manual upload or selected dataset files")
 
 st.info(
     """
-    Upload a gene expression matrix and metadata file.
+    Upload a gene expression matrix and metadata file, or use files selected by Dataset Intake.
 
     Requirements:
     - expression matrix: CSV, TSV or XLSX
