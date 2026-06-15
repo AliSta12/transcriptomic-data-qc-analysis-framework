@@ -84,7 +84,7 @@ with st.expander("Run Dataset Intake on a local dataset folder", expanded=False)
         value="outputs/streamlit_dataset_intake",
     )
 
-    if st.button("Run Dataset Intake"):
+    if st.button("Scan folder"):
         try:
             start_time = time.time()
 
