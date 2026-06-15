@@ -219,12 +219,18 @@ with st.expander("Run Dataset Intake on a local dataset folder", expanded=False)
 if st.session_state.get("show_input_review", False):
     st.header("Input Review & Repair Guidance")
 
+    input_review_source = st.session_state.get("input_review_source", "Unknown")
+
     st.warning(
         st.session_state.get(
             "input_review_message",
             "Manual review is required before continuing.",
         )
     )
+
+    if "last_cleaner_error" in st.session_state:
+        st.subheader("Detected Data Cleaner issue")
+        st.error(st.session_state["last_cleaner_error"])
 
     st.markdown(
         """
@@ -235,27 +241,42 @@ if st.session_state.get("show_input_review", False):
 
     st.subheader("What was detected?")
 
-    if "dataset_intake_result" in st.session_state:
-        selected_files = st.session_state["dataset_intake_result"]["selected_files"].copy()
-
-        selected_files["file_name"] = selected_files["file_path"].apply(
-            lambda value: Path(value).name if value else ""
+    if input_review_source == "Data Cleaner":
+        st.info(
+            "The issue was detected while running the Data Cleaner on the selected "
+            "input files. The files were loaded for preview, but they could not be "
+            "processed using the available rule-based cleaning rules."
         )
 
-        st.dataframe(
-            selected_files[
-                [
-                    "role",
-                    "file_name",
-                    "selection_status",
-                    "confidence",
-                    "reason",
-                ]
-            ],
-            width="stretch",
-        )
+    elif input_review_source == "Dataset Intake":
+        if "dataset_intake_result" in st.session_state:
+            selected_files = st.session_state["dataset_intake_result"][
+                "selected_files"
+            ].copy()
+
+            selected_files["file_name"] = selected_files["file_path"].apply(
+                lambda value: Path(value).name if value else ""
+            )
+
+            st.dataframe(
+                selected_files[
+                    [
+                        "role",
+                        "file_name",
+                        "selection_status",
+                        "confidence",
+                        "reason",
+                    ]
+                ],
+                width="stretch",
+            )
+        else:
+            st.info("No Dataset Intake result is currently available.")
+
     else:
-        st.info("No Dataset Intake result is currently available.")
+        st.info(
+            "Manual review was activated, but the source of the issue was not specified."
+        )
 
     st.subheader("Recommended manual checks")
 
@@ -274,13 +295,20 @@ if st.session_state.get("show_input_review", False):
 
     st.subheader("Recommended next action")
 
-    st.info(
-        "Open the candidate files locally, correct the structure if needed, "
-        "save the corrected files, and upload them manually in section 1."
-    )
+    if input_review_source == "Data Cleaner":
+        st.info(
+            "Correct the uploaded expression matrix or metadata file, then upload "
+            "the corrected files again in section 1."
+        )
+    else:
+        st.info(
+            "Open the candidate files locally, correct the structure if needed, "
+            "save the corrected files, and upload them manually in section 1."
+        )
 
     if st.button("Hide Input Review"):
         st.session_state["show_input_review"] = False
+        st.session_state.pop("last_cleaner_error", None)
         st.rerun()
 
 
@@ -468,6 +496,12 @@ if input_files_available:
 
     st.header("2. Run Data Cleaner")
 
+    if st.session_state.get("show_input_review", False):
+        st.warning(
+            "Input Review is active. Review the guidance above, correct the input files, "
+            "and then upload the corrected files again."
+        )
+
     if st.button("Run Data Cleaner"):
         try:
             start_time = time.time()
@@ -490,9 +524,24 @@ if input_files_available:
             )
 
         except Exception as error:
+            st.session_state["show_input_review"] = True
+            st.session_state["input_review_source"] = "Data Cleaner"
+            st.session_state["input_review_message"] = (
+                "Data Cleaner failed while processing the selected input files. "
+                "Please manually review the expression matrix and metadata structure."
+            )
+            st.session_state["last_cleaner_error"] = str(error)
+
             st.error("Data Cleaner failed.")
             st.exception(error)
 
+            st.warning(
+                "Input Review has been activated automatically because the input files "
+                "could not be processed using the available rule-based cleaning rules. "
+                "The page will reload and show the Input Review section above the upload area."
+            )
+
+            st.rerun()
 
 if "cleaner_result" in st.session_state:
     result = st.session_state["cleaner_result"]
@@ -512,6 +561,16 @@ if "cleaner_result" in st.session_state:
             st.error(
                 "Dataset requires review before exploratory analysis."
             )
+
+            if st.button("Go to Input Review", key="go_to_input_review_after_not_ready"):
+                st.session_state["show_input_review"] = True
+                st.session_state["input_review_source"] = "Data Cleaner"
+                st.session_state["input_review_message"] = (
+                    "Data Cleaner completed, but the dataset is not ready for analysis. "
+                    "Please review the readiness report, metadata columns, sample identifiers "
+                    "and expression matrix structure."
+                )
+                st.rerun()
 
         st.dataframe(
             result.data_readiness_report,
