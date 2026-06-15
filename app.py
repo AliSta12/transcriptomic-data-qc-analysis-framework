@@ -65,24 +65,75 @@ def read_local_table_file(file_path: str | Path) -> pd.DataFrame:
 st.header("1. Select input files")
 
 st.caption(
-    "Choose input files manually, use the prepared demo dataset, or scan a local "
-    "dataset folder to identify candidate expression and metadata files."
+    "Provide one expression matrix and one metadata file. "
+    "You can upload files manually or scan a local folder and let the app suggest candidate files."
 )
 
-with st.expander("Run Dataset Intake on a local dataset folder", expanded=False):
+current_use_intake_files = st.session_state.get("use_dataset_intake_files", False)
+
+st.subheader("Choose input method")
+
+selected_input_method = st.radio(
+    "Choose input method",
+    ["Manual upload", "Scan local folder"],
+    index=1 if current_use_intake_files else 0,
+    horizontal=True,
+    label_visibility="collapsed",
+)
+
+if selected_input_method == "Manual upload" and current_use_intake_files:
+    st.session_state["use_dataset_intake_files"] = False
+    st.session_state.pop("dataset_intake_expression_path", None)
+    st.session_state.pop("dataset_intake_metadata_path", None)
+    st.session_state.pop("uploaded_files_signature", None)
+    current_use_intake_files = False
+
+st.subheader("Input requirements")
+
+with st.expander("Show input requirements", expanded=False):
+    if selected_input_method == "Manual upload":
+        st.markdown(
+            """
+            Manual upload requires two files:
+
+            - expression matrix: CSV, TSV or XLSX,
+            - metadata file: CSV, TSV or XLSX,
+            - metadata must contain `sample_id` and `group` columns,
+            - expression values should be numeric.
+
+            The app works with processed expression matrices, not FASTQ or BAM files.
+            """
+        )
+    else:
+        st.markdown(
+            """
+            Folder scan requires a local folder available to this Streamlit app.
+
+            The folder should contain candidate tabular files:
+
+            - expression matrix: CSV, TSV or XLSX,
+            - metadata file: CSV, TSV or XLSX,
+            - metadata must contain `sample_id` and `group` columns.
+
+            The scan suggests candidate files, but you must confirm them with
+            **Use these files** before running the Data Cleaner.
+            """
+        )
+
+
+if selected_input_method == "Scan local folder":
     dataset_directory = st.text_input(
-        "Local dataset folder",
+        "Folder path on this computer",
         value="data/raw/pancan/TCGA-PANCAN-HiSeq-801x20531",
-        help=(
-            "Provide a local folder containing files from a downloaded public dataset. "
-            "The app will scan supported tabular files and report candidate input files."
-        ),
+        help="Paste the path to a folder that contains expression and metadata files.",
     )
 
-    intake_output_directory = st.text_input(
-        "Dataset Intake output directory",
-        value="outputs/streamlit_dataset_intake",
+    st.caption(
+        "Paste the path to a folder that contains expression and metadata files. "
+        "Example: `data/raw/pancan/TCGA-PANCAN-HiSeq-801x20531`."
     )
+
+    intake_output_directory = "outputs/streamlit_dataset_intake"
 
     if st.button("Scan folder"):
         try:
@@ -128,10 +179,10 @@ with st.expander("Run Dataset Intake on a local dataset folder", expanded=False)
                 "Manual review is required."
             )
 
-        st.subheader("Selected Input Files")
+        st.subheader("Files selected by scan")
         st.caption(
-            "Automatic selection is performed only when high-confidence candidates are unique. "
-            "These files are not passed to the Data Cleaner automatically yet."
+            "The scan selected these files because each required role had one "
+            "high-confidence candidate. Review them before using them for cleaning."
         )
 
         selected_display = selected_files.copy()
@@ -153,7 +204,7 @@ with st.expander("Run Dataset Intake on a local dataset folder", expanded=False)
         )
 
         if auto_selected_count == 2:
-            if st.button("Use selected files for Data Cleaner"):
+            if st.button("Use these files"):
                 expression_row = selected_files[
                     selected_files["role"] == "expression_matrix"
                 ].iloc[0]
@@ -170,7 +221,7 @@ with st.expander("Run Dataset Intake on a local dataset folder", expanded=False)
                 st.session_state.pop("uploaded_files_signature", None)
 
                 st.success(
-                    "Selected Dataset Intake files will be used in the Data Cleaner section."
+                    "These files are now selected for cleaning."
                 )
         else:
             st.info(
@@ -312,27 +363,12 @@ if st.session_state.get("show_input_review", False):
         st.rerun()
 
 
-st.subheader("Manual upload or selected dataset files")
-
-st.info(
-    """
-    Upload a gene expression matrix and metadata file, or use files selected by Dataset Intake.
-
-    Requirements:
-    - expression matrix: CSV, TSV or XLSX
-    - metadata file: must contain `sample_id` and `group` columns
-    - internal format after harmonization: sample × gene
-
-    This app works with processed expression matrices, not FASTQ or BAM files.
-    """
-)
-
 use_intake_files = st.session_state.get("use_dataset_intake_files", False)
 
 if use_intake_files:
     st.info(
-        "Using files selected by Dataset Intake. "
-        "You can clear this selection to return to manual upload or demo dataset."
+        "Using files selected by folder scan. "
+        "You can clear this selection to return to manual upload."
     )
 
     col_clear_intake, _ = st.columns([1, 3])
@@ -342,24 +378,14 @@ if use_intake_files:
             st.session_state.pop("dataset_intake_expression_path", None)
             st.session_state.pop("dataset_intake_metadata_path", None)
             st.session_state.pop("uploaded_files_signature", None)
+            st.session_state.pop("cleaner_result", None)
+            st.session_state.pop("analysis_result", None)
             st.rerun()
-
-use_demo_dataset = False
-
-if not use_intake_files:
-    use_demo_dataset = st.checkbox(
-        "Use prepared GEO demo dataset",
-        value=False,
-        help=(
-            "Loads the processed GEO GSE15852 expression matrix and metadata "
-            "from the local data/processed directory."
-        ),
-    )
 
 expression_file = None
 metadata_file = None
 
-if not use_intake_files and not use_demo_dataset:
+if not use_intake_files and selected_input_method == "Manual upload":
     expression_file = st.file_uploader(
         "Upload expression matrix",
         type=["csv", "tsv", "xlsx"],
@@ -369,20 +395,30 @@ if not use_intake_files and not use_demo_dataset:
         "Upload metadata file",
         type=["csv", "tsv", "xlsx"],
     )
-elif use_demo_dataset:
-    st.info(
-        "Prepared GEO demo dataset selected: "
-        "data/processed/geo_gse15852/expression_matrix.tsv and metadata.tsv"
-    )
+elif selected_input_method == "Scan local folder" and not use_intake_files:
+    pass
 
 input_files_available = (
     use_intake_files
-    or use_demo_dataset
     or (
         expression_file is not None
         and metadata_file is not None
     )
 )
+
+if not input_files_available:
+    st.subheader("Input status")
+
+    if selected_input_method == "Manual upload":
+        st.info(
+            "No input files are selected yet. Upload one expression matrix and one "
+            "metadata file to continue."
+        )
+    else:
+        st.info(
+            "No input files are selected yet. Scan a local folder, review the detected "
+            "candidate files, and then click 'Use these files'."
+        )
 
 if input_files_available:
     if use_intake_files:
@@ -399,21 +435,6 @@ if input_files_available:
             intake_expression_path.stat().st_size,
             str(intake_metadata_path),
             intake_metadata_path.stat().st_size,
-        )
-    elif use_demo_dataset:
-        demo_expression_path = Path(
-            "data/processed/geo_gse15852/expression_matrix.tsv"
-        )
-        demo_metadata_path = Path(
-            "data/processed/geo_gse15852/metadata.tsv"
-        )
-
-        uploaded_files_signature = (
-            "demo_geo_gse15852",
-            str(demo_expression_path),
-            demo_expression_path.stat().st_size,
-            str(demo_metadata_path),
-            demo_metadata_path.stat().st_size,
         )
     else:
         uploaded_files_signature = (
@@ -435,15 +456,6 @@ if input_files_available:
             if use_intake_files:
                 expression_df = read_local_table_file(intake_expression_path)
                 metadata_df = read_local_table_file(intake_metadata_path)
-            elif use_demo_dataset:
-                expression_df = pd.read_csv(
-                    demo_expression_path,
-                    sep="\t",
-                )
-                metadata_df = pd.read_csv(
-                    demo_metadata_path,
-                    sep="\t",
-                )
             else:
                 expression_df = read_uploaded_file(expression_file)
                 metadata_df = read_uploaded_file(metadata_file)
@@ -457,8 +469,6 @@ if input_files_available:
 
         if use_intake_files:
             st.session_state["dataset_name"] = intake_expression_path.name
-        elif use_demo_dataset:
-            st.session_state["dataset_name"] = "GEO GSE15852 Demo Dataset"
         else:
             st.session_state["dataset_name"] = expression_file.name
 
@@ -467,6 +477,28 @@ if input_files_available:
 
     expression_df = st.session_state["expression_df"]
     metadata_df = st.session_state["metadata_df"]
+
+    st.subheader("Current input selection")
+
+    if use_intake_files:
+        current_source = "Scan local folder"
+        current_expression_name = Path(
+            st.session_state["dataset_intake_expression_path"]
+        ).name
+        current_metadata_name = Path(
+            st.session_state["dataset_intake_metadata_path"]
+        ).name
+    else:
+        current_source = "Manual upload"
+        current_expression_name = expression_file.name
+        current_metadata_name = metadata_file.name
+
+    st.info(
+        f"Source: {current_source}\n\n"
+        f"Expression matrix: {current_expression_name}\n\n"
+        f"Metadata file: {current_metadata_name}\n\n"
+        "Status: Ready for preview"
+    )
 
     st.success(
         "Input files are ready for preview "
