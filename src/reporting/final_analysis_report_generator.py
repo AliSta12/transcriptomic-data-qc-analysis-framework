@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+from xml.sax.saxutils import escape
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import (
@@ -316,9 +317,17 @@ class FinalAnalysisReportGenerator:
         table_data = self._dataframe_to_table_data(
             dataframe=dataframe,
             max_rows=max_rows,
+            styles=styles,
         )
 
-        table = Table(table_data, repeatRows=1)
+        table = Table(
+            table_data,
+            repeatRows=1,
+            colWidths=self._get_dataframe_column_widths(
+                dataframe=dataframe,
+                title=title,
+            ),
+        )
         table.setStyle(
             TableStyle(
                 [
@@ -355,19 +364,68 @@ class FinalAnalysisReportGenerator:
         self,
         dataframe: pd.DataFrame,
         max_rows: int,
-    ) -> list[list[str]]:
+        styles,
+    ) -> list[list[Paragraph]]:
 
         display_df = dataframe.head(max_rows).copy()
         display_df = display_df.fillna("")
 
-        table_data = [list(display_df.columns)]
+        cell_style = styles["Normal"].clone("WrappedTableCell")
+        cell_style.fontSize = 7
+        cell_style.leading = 8
+        cell_style.wordWrap = "CJK"
+
+        header_style = styles["Normal"].clone("WrappedTableHeader")
+        header_style.fontName = "Helvetica-Bold"
+        header_style.fontSize = 7
+        header_style.leading = 8
+        header_style.wordWrap = "CJK"
+
+        table_data = [
+            [
+                Paragraph(
+                    escape(self._format_table_value(column)),
+                    header_style,
+                )
+                for column in display_df.columns
+            ]
+        ]
 
         for row in display_df.values.tolist():
             formatted_row = [
-                self._format_table_value(value)
+                Paragraph(
+                    escape(self._format_table_value(value)),
+                    cell_style,
+                )
                 for value in row
             ]
             table_data.append(formatted_row)
+
+        return table_data
+
+    def _get_dataframe_column_widths(
+        self,
+        dataframe: pd.DataFrame,
+        title: str,
+    ) -> list[float]:
+
+        columns = list(dataframe.columns)
+        column_count = len(columns)
+
+        if column_count == 0:
+            return []
+
+        if title == "3. Data Quality Assessment" and column_count == 5:
+            return [82, 62, 38, 112, 206]
+
+        if title == "5. Data Readiness Assessment" and column_count == 5:
+            return [95, 55, 55, 55, 240]
+
+        if title == "4. Cleaning & Harmonization Summary" and column_count == 5:
+            return [105, 105, 80, 75, 135]
+
+        total_width = 500
+        return [total_width / column_count] * column_count
         return table_data
 
     def _get_qc_metric(

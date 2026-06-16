@@ -619,6 +619,26 @@ if "cleaner_result" in st.session_state:
             width="stretch",
         )
 
+        st.markdown("#### QC decision summary")
+
+        for _, row in result.data_quality_report.iterrows():
+            status = row["status"]
+            check = row["check"]
+            metric = row["metric"]
+            details = row["details"]
+
+            if status == "PASS":
+                st.success(f"{check} — PASS")
+            elif status == "WARNING":
+                st.warning(f"{check} — WARNING")
+            elif status == "REQUIRES REVIEW":
+                st.error(f"{check} — REQUIRES REVIEW")
+            else:
+                st.info(f"{check} — {status}")
+
+            st.caption(f"Metric: {metric}")
+            st.write(details)
+
     with st.expander("Harmonization report"):
         st.caption(
             "This report documents structural changes applied before analysis, "
