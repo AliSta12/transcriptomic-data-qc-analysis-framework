@@ -665,7 +665,38 @@ if "cleaner_result" in st.session_state:
 
     st.header("4. Analysis Engine")
 
-    if st.button("Run Analysis Engine"):
+    expression_values = result.cleaned_expression_matrix.drop(
+        columns=["sample_id"],
+        errors="ignore",
+    )
+    remaining_missing_values = int(expression_values.isna().sum().sum())
+    analysis_blocked = (
+        result.final_status == "REQUIRES_REVIEW"
+        or remaining_missing_values > 0
+    )
+
+    if analysis_blocked:
+        st.session_state.pop("analysis_result", None)
+
+        st.warning(
+            "Exploratory analysis is disabled because the cleaned dataset still "
+            "requires review or contains missing expression values."
+        )
+
+        st.caption(
+            "Review the Data Cleaner reports and audit log before running PCA, "
+            "heatmap generation and sample clustering. PCA cannot be computed "
+            "when the expression matrix still contains missing values."
+        )
+
+        st.write(
+            {
+                "data_cleaner_final_status": result.final_status,
+                "remaining_missing_expression_values": remaining_missing_values,
+            }
+        )
+
+    if st.button("Run Analysis Engine", disabled=analysis_blocked):
 
         try:
             start_time = time.time()

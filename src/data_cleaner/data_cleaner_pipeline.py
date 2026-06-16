@@ -222,8 +222,13 @@ class DataCleanerPipeline:
             metric=str(constant_result.removed_gene_count),
             threshold="0 constant genes",
             details=(
-                "No constant genes were detected. Constant genes are removed only "
-                "when all expression values are identical."
+                "Constant genes were removed from the analytical dataset because all "
+                "expression values were identical."
+                if constant_result.removed_gene_count > 0
+                else (
+                    "No constant genes were detected. Constant genes are removed only "
+                    "when all expression values are identical."
+                )
             ),
         )
 
