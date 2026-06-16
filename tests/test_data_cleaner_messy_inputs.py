@@ -215,3 +215,49 @@ def test_gene_by_sample_orientation_is_transposed_to_sample_by_gene():
     assert result.cleaned_expression_matrix["sample_id"].tolist() == ["S1", "S2"]
     assert "TP53" in result.cleaned_expression_matrix.columns
     assert "BRCA1" in result.cleaned_expression_matrix.columns
+
+
+def test_non_numeric_expression_values_are_converted_to_missing_and_reported():
+    expression_df = pd.DataFrame(
+        {
+            "sample_id": [f"S{i}" for i in range(1, 22)],
+            "TP53": [
+                1.0, 2.0, 3.0, 4.0, 5.0,
+                6.0, 7.0, 8.0, 9.0, 10.0,
+                "bad_value",
+                12.0, 13.0, 14.0, 15.0,
+                16.0, 17.0, 18.0, 19.0, 20.0,
+                21.0,
+            ],
+            "BRCA1": [
+                10.0, 11.0, 12.0, 13.0, 14.0,
+                15.0, 16.0, 17.0, 18.0, 19.0,
+                20.0, 21.0, 22.0, 23.0, 24.0,
+                25.0, 26.0, 27.0, 28.0, 29.0,
+                30.0,
+            ],
+        }
+    )
+
+    metadata_df = pd.DataFrame(
+        {
+            "sample_id": [f"S{i}" for i in range(1, 22)],
+            "group": ["A"] * 10 + ["B"] * 11,
+        }
+    )
+
+    result = DataCleanerPipeline().run(expression_df, metadata_df)
+
+    numeric_row = result.data_quality_report.loc[
+        result.data_quality_report["check"] == "Numeric Data Check"
+    ].iloc[0]
+
+    assert numeric_row["status"] == "WARNING"
+    assert numeric_row["metric"] == "1"
+
+    assert "convert_non_numeric_expression_values_to_missing" in (
+        result.audit_log["rule_applied"].tolist()
+    )
+
+    assert result.cleaned_expression_matrix["TP53"].isna().sum() == 0
+    assert pd.api.types.is_numeric_dtype(result.cleaned_expression_matrix["TP53"])

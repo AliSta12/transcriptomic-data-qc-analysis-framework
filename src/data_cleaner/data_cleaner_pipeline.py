@@ -15,6 +15,7 @@ from src.reporting.harmonization_report import HarmonizationReport
 from src.reporting.data_quality_report import DataQualityReport
 from src.reporting.data_readiness_report import DataReadinessReport
 from src.data_cleaner.metadata_harmonizer import MetadataHarmonizer
+from src.data_cleaner.expression_value_cleaner import ExpressionValueCleaner
 
 @dataclass
 class DataCleanerPipelineResult:
@@ -96,7 +97,16 @@ class DataCleanerPipeline:
 
         current_df = duplicate_result.cleaned_dataframe
 
-        # 5. Missing data handling
+        # 5. Expression value cleaning
+        expression_value_cleaner = ExpressionValueCleaner()
+        expression_value_result = expression_value_cleaner.apply_rules(
+            current_df,
+            self.audit_logger,
+        )
+
+        current_df = expression_value_result.cleaned_dataframe
+
+        # 6. Missing data handling
         missing_handler = MissingDataHandler()
         missing_result = missing_handler.apply_rules(
             current_df,
@@ -105,7 +115,7 @@ class DataCleanerPipeline:
 
         current_df = missing_result.cleaned_dataframe
 
-        # 6. Metadata consistency check
+        # 7. Metadata consistency check
         metadata_checker = MetadataConsistencyChecker()
         metadata_result = metadata_checker.check(
             current_df,
@@ -113,7 +123,7 @@ class DataCleanerPipeline:
             self.audit_logger,
         )
 
-        # 7. Constant gene detection
+        # 8. Constant gene detection
         constant_detector = ConstantGeneDetector()
         constant_result = constant_detector.apply_rules(
             current_df,
@@ -122,7 +132,7 @@ class DataCleanerPipeline:
 
         current_df = constant_result.cleaned_dataframe
 
-        # 8. Low variance gene detection
+        # 9. Low variance gene detection
         low_variance_detector = LowVarianceGeneDetector()
         low_variance_result = low_variance_detector.apply_rules(
             current_df,
@@ -131,8 +141,20 @@ class DataCleanerPipeline:
 
         current_df = low_variance_result.cleaned_dataframe
 
-        # 9. Data quality report
+        # 10. Data quality report
         quality_report = DataQualityReport()
+
+        quality_report.add_check(
+            check="Numeric Data Check",
+            status=(
+                "WARNING"
+                if expression_value_result.invalid_value_count > 0
+                else "PASS"
+            ),
+            metric=str(expression_value_result.invalid_value_count),
+            threshold="0 invalid expression values",
+            details="Non-numeric expression values were converted to missing values.",
+        )
 
         quality_report.add_check(
             check="Missing Data",
@@ -212,7 +234,7 @@ class DataCleanerPipeline:
             data_quality_report=quality_df,
             output_directory=output_directory,
         )
-        # 10. Data readiness report
+        # 11. Data readiness report
         pass_count = int((quality_df["status"] == "PASS").sum())
         warning_count = int((quality_df["status"] == "WARNING").sum())
         review_count = int((quality_df["status"] == "REQUIRES REVIEW").sum())
