@@ -153,7 +153,10 @@ class DataCleanerPipeline:
             ),
             metric=str(expression_value_result.invalid_value_count),
             threshold="0 invalid expression values",
-            details="Non-numeric expression values were converted to missing values.",
+            details=(
+                "Non-numeric expression values were converted to missing values "
+                "because expression values must be numeric for QC and downstream analysis."
+            ),
         )
 
         quality_report.add_check(
@@ -165,7 +168,13 @@ class DataCleanerPipeline:
             ),
             metric=str(missing_result.total_missing_values),
             threshold="gene <=5% impute; gene >20% remove; sample >20% review",
-            details="Missing data rules were applied.",
+            details=(
+                "Missing values were handled using transparent rules: "
+                "genes with <=5% missing values were imputed, "
+                "genes with 5-20% missing values were kept with warning, "
+                "genes with >20% missing values were removed, and "
+                "samples with >20% missing values require review."
+            ),
         )
 
         quality_report.add_check(
@@ -189,7 +198,10 @@ class DataCleanerPipeline:
             ),
             metric=str(len(duplicate_result.aggregated_genes)),
             threshold="0 duplicate genes",
-            details="Duplicate genes are aggregated using mean expression values.",
+            details=(
+                "No duplicate genes were detected. If duplicate genes are detected, "
+                "they are aggregated using mean expression values."
+            ),
         )
 
         quality_report.add_check(
@@ -209,7 +221,10 @@ class DataCleanerPipeline:
             ),
             metric=str(constant_result.removed_gene_count),
             threshold="0 constant genes",
-            details="Constant genes were removed from analytical dataset.",
+            details=(
+                "No constant genes were detected. Constant genes are removed only "
+                "when all expression values are identical."
+            ),
         )
 
         quality_report.add_check(
@@ -221,7 +236,10 @@ class DataCleanerPipeline:
             ),
             metric=str(low_variance_result.removed_gene_count),
             threshold=f"variance < {low_variance_result.variance_threshold}",
-            details="Low variance genes were detected and reported.",
+            details=(
+                "No low-variance genes were removed. Genes below the configured "
+                "variance threshold are removed from the analytical dataset."
+            ),
         )
 
         quality_df = quality_report.to_dataframe()
@@ -244,7 +262,10 @@ class DataCleanerPipeline:
             pass_count=pass_count,
             warning_count=warning_count,
             review_count=review_count,
-            details="Dataset readiness was assessed based on QC statuses.",
+            details=(
+                "Dataset readiness was assessed using QC statuses. "
+                "If any check requires review, inspect the audit log before running exploratory analysis."
+            ),
         )
 
         readiness_df = readiness_report.to_dataframe()
