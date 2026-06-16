@@ -1,0 +1,2 @@
+This is only a text note.
+It is not an expression matrix or metadata file.
