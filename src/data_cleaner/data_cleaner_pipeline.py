@@ -168,13 +168,7 @@ class DataCleanerPipeline:
             ),
             metric=str(missing_result.total_missing_values),
             threshold="gene <=5% impute; gene >20% remove; sample >20% review",
-            details=(
-                "Missing values were handled using transparent rules: "
-                "genes with <=5% missing values were imputed, "
-                "genes with 5-20% missing values were kept with warning, "
-                "genes with >20% missing values were removed, and "
-                "samples with >20% missing values require review."
-            ),
+            details=self._build_missing_data_details(missing_result),
         )
 
         quality_report.add_check(
@@ -267,9 +261,9 @@ class DataCleanerPipeline:
             pass_count=pass_count,
             warning_count=warning_count,
             review_count=review_count,
-            details=(
-                "Dataset readiness was assessed using QC statuses. "
-                "If any check requires review, inspect the audit log before running exploratory analysis."
+            details=self._build_readiness_details(
+                warning_count=warning_count,
+                review_count=review_count,
             ),
         )
 
@@ -287,3 +281,87 @@ class DataCleanerPipeline:
             missing_data_plot_path=missing_data_plot.plot_path,
             qc_status_summary_plot_path=qc_status_summary_plot.plot_path,
         )
+
+    def _build_missing_data_details(
+        self,
+        missing_result,
+    ) -> str:
+        """
+        Build a dataset-specific explanation of missing-data handling decisions.
+        """
+        if missing_result.total_missing_values == 0:
+            return (
+                "No missing expression values were detected. "
+                "No missing-data imputation, gene removal or sample review was required."
+            )
+
+        details = [
+            f"{missing_result.total_missing_values} missing expression values were detected."
+        ]
+
+        if missing_result.imputed_genes:
+            details.append(
+                f"{len(missing_result.imputed_genes)} genes with <=5% missing values "
+                "were imputed using the gene median."
+            )
+
+        moderate_missing_gene_count = int(
+            (
+                missing_result.gene_missing_summary["decision"]
+                == "kept_with_warning"
+            ).sum()
+        )
+
+        if moderate_missing_gene_count > 0:
+            details.append(
+                f"{moderate_missing_gene_count} genes with 5-20% missing values "
+                "were retained with WARNING and were not automatically imputed."
+            )
+
+        if missing_result.removed_genes:
+            details.append(
+                f"{len(missing_result.removed_genes)} genes with >20% missing values "
+                "were removed from the analytical dataset."
+            )
+
+        if missing_result.review_samples:
+            details.append(
+                f"{len(missing_result.review_samples)} samples exceeded the missing-value "
+                "review threshold and require manual review."
+            )
+
+        if not missing_result.review_samples:
+            details.append(
+                "No samples exceeded the missing-value review threshold."
+            )
+
+        return " ".join(details)
+
+    def _build_readiness_details(
+        self,
+        warning_count: int,
+        review_count: int,
+    ) -> str:
+        """
+        Build a status-specific readiness recommendation.
+        """
+        if review_count > 0:
+            return (
+                "Dataset readiness was assessed using QC statuses. "
+                "At least one check requires manual review; inspect the audit log "
+                "and QC reports before running exploratory analysis."
+            )
+
+        if warning_count > 0:
+            return (
+                "Dataset readiness was assessed using QC statuses. "
+                "The dataset can be used for exploratory analysis, but warnings "
+                "should be reviewed and reported as analysis limitations."
+            )
+
+        return (
+            "Dataset readiness was assessed using QC statuses. "
+            "No blocking QC issues or warnings were detected; the dataset is ready "
+            "for exploratory analysis."
+        )
+

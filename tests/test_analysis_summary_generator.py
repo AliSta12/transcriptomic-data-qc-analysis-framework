@@ -87,3 +87,30 @@ def test_analysis_summary_generator_rejects_empty_dataframe():
         raise AssertionError(
             "Expected ValueError was not raised."
         )
+
+
+def test_analysis_summary_markdown_contains_methodological_note(tmp_path):
+    summary_1 = pd.DataFrame(
+        [
+            {
+                "metric": "sample_count",
+                "value": 10,
+            }
+        ]
+    )
+
+    result = AnalysisSummaryGenerator().generate(
+        summary_dataframes=[summary_1],
+        output_directory=str(tmp_path),
+    )
+
+    markdown_content = (
+        tmp_path / "analysis_summary.md"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+    assert result.markdown_path.endswith("analysis_summary.md")
+    assert "## Methodological Note" in markdown_content
+    assert "exploratory transcriptomic analysis only" in markdown_content
+    assert "formal differential expression results" in markdown_content

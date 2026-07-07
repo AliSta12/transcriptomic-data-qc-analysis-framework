@@ -215,6 +215,20 @@ class AnalysisSummaryGenerator:
 
             sections.append("")
 
+        sections.extend(
+            [
+                "## Methodological Note",
+                "",
+                (
+                    "This report summarizes exploratory transcriptomic analysis only. "
+                    "The most variable genes, PCA, heatmap and clustering results are "
+                    "intended for quality assessment and exploratory visualization. "
+                    "They should not be interpreted as formal differential expression results."
+                ),
+                "",
+            ]
+        )
+
         return "\n".join(sections).strip()
     
     def _format_dataframe_columns(
