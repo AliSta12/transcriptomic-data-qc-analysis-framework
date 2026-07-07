@@ -567,6 +567,33 @@ def save_intake_outputs(
     }
 
 
+def mark_selected_files(
+    discovery_report: pd.DataFrame,
+    selected_files: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Mark auto-selected files in the discovery report.
+
+    The discovery report is the audit-style output of Dataset Intake, so it must
+    clearly show which discovered files were selected for downstream cleaning.
+    Files that require review remain marked as not selected.
+    """
+    updated_report = discovery_report.copy()
+
+    selected_paths = set(
+        selected_files.loc[
+            selected_files["selection_status"] == "auto_selected",
+            "file_path",
+        ]
+    )
+
+    updated_report["selected"] = updated_report["file_path"].apply(
+        lambda file_path: "yes" if file_path in selected_paths else "no"
+    )
+
+    return updated_report
+
+
 def run_dataset_intake(
     dataset_directory: str | Path,
     output_directory: str | Path,
@@ -577,7 +604,8 @@ def run_dataset_intake(
     Steps:
     1. Discover candidate files in a local dataset directory.
     2. Select input files conservatively when high-confidence candidates are unique.
-    3. Save Dataset Intake output artifacts.
+    3. Mark selected files in the discovery report.
+    4. Save Dataset Intake output artifacts.
 
     Returns a dictionary containing:
     - discovery_report DataFrame,
@@ -586,6 +614,10 @@ def run_dataset_intake(
     """
     discovery_report = discover_dataset_files(dataset_directory)
     selected_files = select_input_files(discovery_report)
+    discovery_report = mark_selected_files(
+        discovery_report=discovery_report,
+        selected_files=selected_files,
+    )
     output_paths = save_intake_outputs(
         discovery_report=discovery_report,
         selected_files=selected_files,

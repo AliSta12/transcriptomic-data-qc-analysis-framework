@@ -56,10 +56,49 @@ def read_local_table_file(file_path: str | Path) -> pd.DataFrame:
     if filename.endswith(".tsv.gz"):
         return pd.read_csv(path, sep="\t", compression="gzip")
 
+    if filename.endswith(".txt"):
+        return pd.read_csv(path, sep=None, engine="python")
+
+    if filename.endswith(".txt.gz"):
+        return pd.read_csv(
+            path,
+            sep=None,
+            engine="python",
+            compression="gzip",
+        )
+
     if filename.endswith(".xlsx"):
         return pd.read_excel(path)
 
     raise ValueError(f"Unsupported file format selected by Dataset Intake: {path.name}")
+
+
+def normalize_local_folder_path(raw_path: str) -> Path:
+    """
+    Convert common Windows/WSL folder path formats to a path readable by Python
+    running inside WSL/Linux.
+
+    Supported examples:
+    - data/raw/my_dataset
+    - /home/alista/project/data/raw/my_dataset
+    - C:\\Users\\Name\\dataset -> /mnt/c/Users/Name/dataset
+    - \\\\wsl$\\Ubuntu\\home\\alista\\dataset -> /home/alista/dataset
+    """
+    cleaned_path = raw_path.strip().strip('"').strip("'")
+
+    normalized_for_detection = cleaned_path.replace("/", "\\")
+
+    if normalized_for_detection.lower().startswith("\\\\wsl$\\"):
+        parts = normalized_for_detection.split("\\")
+        if len(parts) >= 5:
+            return Path("/" + "/".join(parts[4:]))
+
+    if len(cleaned_path) >= 3 and cleaned_path[1] == ":" and cleaned_path[2] in {"\\", "/"}:
+        drive_letter = cleaned_path[0].lower()
+        path_without_drive = cleaned_path[3:].replace("\\", "/")
+        return Path(f"/mnt/{drive_letter}/{path_without_drive}")
+
+    return Path(cleaned_path).expanduser()
 
 
 st.header("1. Select input files")
@@ -111,9 +150,9 @@ with st.expander("Show input requirements", expanded=False):
 
             The folder should contain candidate tabular files:
 
-            - expression matrix: CSV, TSV or XLSX,
-            - metadata file: CSV, TSV or XLSX,
-            - metadata must contain `sample_id` and `group` columns.
+            - expression matrix: CSV, TSV, TXT, XLSX or compressed CSV/TSV/TXT,
+            - metadata file: CSV, TSV, TXT, XLSX or compressed CSV/TSV/TXT,
+            - metadata must contain `sample_id` and `group` columns after harmonization.
 
             The scan suggests candidate files, but you must confirm them with
             **Use these files** before running the Data Cleaner.
@@ -124,24 +163,53 @@ with st.expander("Show input requirements", expanded=False):
 if selected_input_method == "Scan local folder":
     dataset_directory = st.text_input(
         "Folder path on this computer",
-        value="data/raw/pancan/TCGA-PANCAN-HiSeq-801x20531",
-        help="Paste the path to a folder that contains expression and metadata files.",
+        value="",
+        placeholder="Example: data/raw/my_dataset_folder",
+        help=(
+            "Paste a local folder path. The app accepts Linux/WSL paths, relative "
+            "project paths, Windows drive paths and \\\\wsl$ paths."
+        ),
     )
 
     st.caption(
-        "Paste the path to a folder that contains expression and metadata files. "
-        "Example: `data/raw/pancan/TCGA-PANCAN-HiSeq-801x20531`."
+        "Paste a folder path visible to this app. Examples: "
+        "`data/raw/my_dataset`, "
+        "`/home/alista/.../data/raw/my_dataset`, "
+        "`C:\\\\Users\\\\Name\\\\dataset`, "
+        "or `\\\\wsl$\\\\Ubuntu\\\\home\\\\alista\\\\dataset`. "
+        "The app will convert common Windows/WSL paths when possible."
     )
+
+    if dataset_directory.strip():
+        resolved_dataset_directory = normalize_local_folder_path(dataset_directory)
+        st.caption(f"Resolved path used by the app: `{resolved_dataset_directory}`")
 
     intake_output_directory = "outputs/streamlit_dataset_intake"
 
-    if st.button("Scan folder"):
+    scan_button_disabled = not dataset_directory.strip()
+
+    if scan_button_disabled:
+        st.info("Enter a local folder path to enable folder scanning.")
+
+    if st.button("Scan folder", disabled=scan_button_disabled):
         try:
+            dataset_directory_path = normalize_local_folder_path(dataset_directory)
+
+            if not dataset_directory_path.exists():
+                raise FileNotFoundError(
+                    f"Dataset folder does not exist: {dataset_directory_path}"
+                )
+
+            if not dataset_directory_path.is_dir():
+                raise NotADirectoryError(
+                    f"Selected path is not a folder: {dataset_directory_path}"
+                )
+
             start_time = time.time()
 
             with st.spinner("Scanning dataset folder with rule-based Dataset Intake..."):
                 intake_result = run_dataset_intake(
-                    dataset_directory=dataset_directory,
+                    dataset_directory=dataset_directory_path,
                     output_directory=intake_output_directory,
                 )
 
@@ -226,7 +294,9 @@ if selected_input_method == "Scan local folder":
         else:
             st.info(
                 "Dataset Intake did not auto-select both required files. "
-                "Please use manual upload or review the detected files."
+                "Please use manual upload or review the detected files. "
+                "If this folder contains only a GEO series matrix file, preprocess it "
+                "into separate expression and metadata tables before running the Data Cleaner."
             )
 
             if st.button("Go to Input Review"):
