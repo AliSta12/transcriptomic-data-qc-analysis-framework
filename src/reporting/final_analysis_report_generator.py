@@ -9,6 +9,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import (
     Image,
     KeepTogether,
+    PageBreak,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -80,6 +81,7 @@ class FinalAnalysisReportGenerator:
         )
 
         styles = getSampleStyleSheet()
+        self._configure_report_styles(styles)
         story = []
         
         dataset_overview = analysis_result.dataset_overview.summary_dataframe
@@ -134,6 +136,10 @@ class FinalAnalysisReportGenerator:
                     ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
                     ("FONTSIZE", (0, 0), (-1, -1), 9),
                     ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                    ("TOPPADDING", (0, 0), (-1, -1), 3),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
                 ]
             )
         )
@@ -170,10 +176,9 @@ class FinalAnalysisReportGenerator:
             cleaner_result.harmonization_report,
         )
 
-        self._add_dataframe_section(
+        self._add_readiness_assessment_section(
             story,
             styles,
-            "5. Data Readiness Assessment",
             cleaner_result.data_readiness_report,
         )
 
@@ -193,11 +198,6 @@ class FinalAnalysisReportGenerator:
                 "Shows whether missing values were detected in the uploaded expression matrix.",
             ),
             (
-                cleaner_result.qc_status_summary_plot_path,
-                "QC STATUS SUMMARY",
-                "Summarizes PASS, WARNING, FAIL and REQUIRES REVIEW statuses across quality checks.",
-            ),
-            (
                 analysis_result.class_distribution.plot_path,
                 "CLASS DISTRIBUTION",
                 "Shows the number and percentage of samples in each biological group.",
@@ -210,7 +210,7 @@ class FinalAnalysisReportGenerator:
             (
                 analysis_result.variable_gene_analysis.barplot_path,
                 "TOP VARIABLE GENES",
-                "Ranks the top 50 genes by variance for exploratory visualization.",
+                "Visualizes the top 20 genes by variance for readability; full top 50 and top 100 rankings are exported as CSV files.",
             ),
             (
                 analysis_result.heatmap.plot_path,
@@ -223,6 +223,8 @@ class FinalAnalysisReportGenerator:
                 "Groups samples based on similarity of expression profiles.",
             ),
         ]
+
+        story.append(PageBreak())
 
         story.append(
             KeepTogether(
@@ -238,12 +240,6 @@ class FinalAnalysisReportGenerator:
             styles=styles,
             cleaner_result=cleaner_result,
         )
-
-        image_items = [
-            item
-            for item in image_items
-            if item[1] != "QC STATUS SUMMARY"
-        ]
 
         if self._missing_data_count_is_zero(cleaner_result.data_quality_report):
             image_items = [
@@ -261,10 +257,15 @@ class FinalAnalysisReportGenerator:
                 caption=image_caption,
             )
 
+        self._add_generated_output_files_section(
+            story=story,
+            styles=styles,
+        )
+
         self._add_section(
             story,
             styles,
-            "8. Biological Interpretation",
+            "9. Biological Interpretation",
             "PCA and hierarchical clustering summarize sample-level structure in the cleaned "
             "expression matrix. The heatmap and variable gene ranking highlight genes with high "
             "expression variability across samples. These results are intended for exploratory "
@@ -275,7 +276,7 @@ class FinalAnalysisReportGenerator:
         self._add_section(
             story,
             styles,
-            "9. Conclusions",
+            "10. Conclusions",
             f"The dataset readiness status is: {cleaner_result.final_status}. "
             "QC results, harmonization outputs and exploratory analysis summaries should be "
             "reviewed together before downstream biological interpretation. "
@@ -294,6 +295,244 @@ class FinalAnalysisReportGenerator:
             pdf_path=str(pdf_path),
         )
 
+    def _configure_report_styles(self, styles) -> None:
+        """
+        Defines table-specific PDF styles.
+
+        The report uses three table sizes:
+        - summary/title tables: handled locally,
+        - standard report tables: 8 pt,
+        - dense technical tables: 7.2 pt.
+        """
+
+        styles["Heading1"].fontSize = 16
+        styles["Heading1"].leading = 19
+        styles["Heading1"].spaceAfter = 6
+
+        if "StandardTableCell" not in styles.byName:
+            standard_cell = styles["Normal"].clone("StandardTableCell")
+            standard_cell.fontName = "Helvetica"
+            standard_cell.fontSize = 8
+            standard_cell.leading = 9.4
+            standard_cell.spaceBefore = 0
+            standard_cell.spaceAfter = 0
+            styles.add(standard_cell)
+
+        if "CompactTableCell" not in styles.byName:
+            compact_cell = styles["Normal"].clone("CompactTableCell")
+            compact_cell.fontName = "Helvetica"
+            compact_cell.fontSize = 7.2
+            compact_cell.leading = 8.4
+            compact_cell.spaceBefore = 0
+            compact_cell.spaceAfter = 0
+            styles.add(compact_cell)
+
+        if "StandardTableHeader" not in styles.byName:
+            standard_header = styles["Normal"].clone("StandardTableHeader")
+            standard_header.fontName = "Helvetica-Bold"
+            standard_header.fontSize = 8
+            standard_header.leading = 9.4
+            standard_header.spaceBefore = 0
+            standard_header.spaceAfter = 0
+            styles.add(standard_header)
+
+        if "CompactTableHeader" not in styles.byName:
+            compact_header = styles["Normal"].clone("CompactTableHeader")
+            compact_header.fontName = "Helvetica-Bold"
+            compact_header.fontSize = 7.2
+            compact_header.leading = 8.4
+            compact_header.spaceBefore = 0
+            compact_header.spaceAfter = 0
+            styles.add(compact_header)
+
+
+    def _add_readiness_assessment_section(
+        self,
+        story,
+        styles,
+        dataframe: pd.DataFrame,
+    ) -> None:
+
+        def _value_from_row(row, candidate_columns: list[str]) -> str:
+            for column in candidate_columns:
+                if column in dataframe.columns:
+                    return self._format_table_value(row[column])
+            return "N/A"
+
+        table_data = [
+            [
+                Paragraph("Field", styles["StandardTableHeader"]),
+                Paragraph("Value", styles["StandardTableHeader"]),
+            ]
+        ]
+
+        if dataframe.empty:
+            table_data.append(
+                [
+                    Paragraph("Overall status", styles["StandardTableHeader"]),
+                    Paragraph("N/A", styles["StandardTableCell"]),
+                ]
+            )
+            table_data.append(
+                [
+                    Paragraph("Details", styles["StandardTableHeader"]),
+                    Paragraph(
+                        "Data readiness report is empty.",
+                        styles["StandardTableCell"],
+                    ),
+                ]
+            )
+        else:
+            row = dataframe.iloc[0]
+            readiness_rows = [
+                ("Overall status", ["overall_status", "readiness_status"]),
+                ("Total QC checks", ["total_checks"]),
+                ("PASS checks", ["pass_count"]),
+                ("WARNING checks", ["warning_count"]),
+                ("FAIL checks", ["fail_count"]),
+                ("REQUIRES REVIEW checks", ["review_count"]),
+                ("Recommendation", ["recommendation"]),
+                ("Details", ["details"]),
+            ]
+
+            for label, candidate_columns in readiness_rows:
+                value = _value_from_row(row, candidate_columns)
+                if value != "N/A":
+                    table_data.append(
+                        [
+                            Paragraph(
+                                escape(label),
+                                styles["StandardTableHeader"],
+                            ),
+                            Paragraph(
+                                escape(value),
+                                styles["StandardTableCell"],
+                            ),
+                        ]
+                    )
+
+        table = Table(
+            table_data,
+            repeatRows=1,
+            colWidths=[170, 540],
+        )
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                    ("BACKGROUND", (0, 1), (0, -1), colors.whitesmoke),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+        )
+
+        story.append(
+            KeepTogether(
+                [
+                    Paragraph("5. Data Readiness Assessment", styles["Heading1"]),
+                    Spacer(1, 8),
+                    table,
+                    Spacer(1, 16),
+                ]
+            )
+        )
+    def _add_generated_output_files_section(self, story, styles) -> None:
+        output_groups = [
+            (
+                "Data Cleaner & QC",
+                (
+                    "clean_expression_matrix.csv, clean_metadata.csv, audit_log.csv, "
+                    "harmonization_report.csv, data_quality_report.csv, "
+                    "data_readiness_report.csv"
+                ),
+                (
+                    "Cleaned data, transparent audit trail, harmonization summary "
+                    "and final readiness assessment."
+                ),
+            ),
+            (
+                "Analysis Engine",
+                (
+                    "top_50_variable_genes.csv, top_100_variable_genes.csv, "
+                    "analysis_summary.csv, analysis_summary.md"
+                ),
+                "Exploratory analysis tables and human-readable summary files.",
+            ),
+            (
+                "Visualizations",
+                (
+                    "class_distribution.png, pca_plot.png, "
+                    "top_variable_genes_barplot.png, heatmap_top50_variable_genes.png, "
+                    "sample_clustering_dendrogram.png"
+                ),
+                "Figures used for exploratory review and final report interpretation.",
+            ),
+            (
+                "Reporting",
+                "final_report.pdf",
+                "Final PDF report summarizing QC, harmonization and exploratory analysis.",
+            ),
+        ]
+
+        table_data = [
+            [
+                Paragraph("Module", styles["StandardTableHeader"]),
+                Paragraph("Generated files", styles["StandardTableHeader"]),
+                Paragraph("Purpose", styles["StandardTableHeader"]),
+            ]
+        ]
+
+        for module, generated_files, purpose in output_groups:
+            table_data.append(
+                [
+                    Paragraph(escape(module), styles["StandardTableCell"]),
+                    Paragraph(escape(generated_files), styles["CompactTableCell"]),
+                    Paragraph(escape(purpose), styles["StandardTableCell"]),
+                ]
+            )
+
+        table = Table(
+            table_data,
+            repeatRows=1,
+            colWidths=[130, 360, 240],
+        )
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+        )
+
+        story.append(
+            KeepTogether(
+                [
+                    Paragraph("8. Generated Output Files", styles["Heading1"]),
+                    Spacer(1, 8),
+                    Paragraph(
+                        (
+                            "The generated outputs support reproducibility, "
+                            "transparent reporting and exploratory review."
+                        ),
+                        styles["Normal"],
+                    ),
+                    Spacer(1, 8),
+                    table,
+                    Spacer(1, 16),
+                ]
+            )
+        )
     def _add_section(self, story, styles, title: str, text: str) -> None:
         section_block = KeepTogether(
             [
@@ -314,10 +553,29 @@ class FinalAnalysisReportGenerator:
         max_rows: int = 12,
     ) -> None:
 
+        compact_table_titles = {
+            "3. Data Quality Assessment",
+        }
+
+        is_compact_table = title in compact_table_titles
+
+        cell_style = (
+            styles["CompactTableCell"]
+            if is_compact_table
+            else styles["StandardTableCell"]
+        )
+        header_style = (
+            styles["CompactTableHeader"]
+            if is_compact_table
+            else styles["StandardTableHeader"]
+        )
+
         table_data = self._dataframe_to_table_data(
             dataframe=dataframe,
             max_rows=max_rows,
             styles=styles,
+            cell_style=cell_style,
+            header_style=header_style,
         )
 
         table = Table(
@@ -328,29 +586,33 @@ class FinalAnalysisReportGenerator:
                 title=title,
             ),
         )
+
+        top_bottom_padding = 3 if is_compact_table else 4
+
         table.setStyle(
             TableStyle(
                 [
                     ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
                     ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 7),
                     ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                    ("TOPPADDING", (0, 0), (-1, -1), top_bottom_padding),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), top_bottom_padding),
                 ]
             )
         )
 
-        section_block = KeepTogether(
-            [
-                Paragraph(title, styles["Heading1"]),
-                Spacer(1, 8),
-                table,
-                Spacer(1, 16),
-            ]
+        story.append(
+            KeepTogether(
+                [
+                    Paragraph(title, styles["Heading1"]),
+                    Spacer(1, 8),
+                    table,
+                    Spacer(1, 16),
+                ]
+            )
         )
-
-        story.append(section_block)
-
     def _format_table_value(self, value) -> str:
         if pd.isna(value):
             return ""
@@ -360,49 +622,73 @@ class FinalAnalysisReportGenerator:
 
         return str(value)
 
+    def _format_column_label(self, column_name: str) -> str:
+        """
+        Converts machine-oriented dataframe column names into report-friendly labels.
+
+        Examples:
+        - metric -> Metric
+        - analysis_step -> Analysis step
+        - original_element -> Original element
+        """
+
+        return str(column_name).replace("_", " ").strip().capitalize()
+
+
     def _dataframe_to_table_data(
         self,
         dataframe: pd.DataFrame,
         max_rows: int,
         styles,
-    ) -> list[list[Paragraph]]:
+        cell_style=None,
+        header_style=None,
+    ) -> list:
 
-        display_df = dataframe.head(max_rows).copy()
-        display_df = display_df.fillna("")
+        cell_style = cell_style or styles["StandardTableCell"]
+        header_style = header_style or styles["StandardTableHeader"]
 
-        cell_style = styles["Normal"].clone("WrappedTableCell")
-        cell_style.fontSize = 7
-        cell_style.leading = 8
-        cell_style.wordWrap = "CJK"
+        if dataframe.empty:
+            return [
+                [
+                    Paragraph(
+                        "No data available.",
+                        cell_style,
+                    )
+                ]
+            ]
 
-        header_style = styles["Normal"].clone("WrappedTableHeader")
-        header_style.fontName = "Helvetica-Bold"
-        header_style.fontSize = 7
-        header_style.leading = 8
-        header_style.wordWrap = "CJK"
+        display_dataframe = dataframe.head(max_rows).copy()
 
         table_data = [
             [
                 Paragraph(
-                    escape(self._format_table_value(column)),
+                    escape(self._format_column_label(column)),
                     header_style,
                 )
-                for column in display_df.columns
+                for column in display_dataframe.columns
             ]
         ]
 
-        for row in display_df.values.tolist():
-            formatted_row = [
-                Paragraph(
-                    escape(self._format_table_value(value)),
-                    cell_style,
-                )
-                for value in row
-            ]
-            table_data.append(formatted_row)
+        for _, row in display_dataframe.iterrows():
+            table_data.append(
+                [
+                    Paragraph(
+                        escape(self._format_table_value(value)),
+                        cell_style,
+                    )
+                    for value in row
+                ]
+            )
+
+        if len(dataframe) > max_rows:
+            table_data.append(
+                [
+                    Paragraph("...", cell_style)
+                    for _ in display_dataframe.columns
+                ]
+            )
 
         return table_data
-
     def _get_dataframe_column_widths(
         self,
         dataframe: pd.DataFrame,
@@ -563,6 +849,10 @@ class FinalAnalysisReportGenerator:
                     ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
                     ("FONTSIZE", (0, 0), (-1, -1), 8),
                     ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                    ("TOPPADDING", (0, 0), (-1, -1), 3),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
                     ("LEFTPADDING", (0, 0), (-1, -1), 8),
                     ("RIGHTPADDING", (0, 0), (-1, -1), 8),
                     ("TOPPADDING", (0, 0), (-1, -1), 5),
@@ -631,6 +921,10 @@ class FinalAnalysisReportGenerator:
                     ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                     ("FONTSIZE", (0, 0), (-1, -1), 9),
                     ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                    ("TOPPADDING", (0, 0), (-1, -1), 3),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
                     ("LEFTPADDING", (0, 0), (-1, -1), 8),
                     ("RIGHTPADDING", (0, 0), (-1, -1), 8),
                     ("TOPPADDING", (0, 0), (-1, -1), 6),

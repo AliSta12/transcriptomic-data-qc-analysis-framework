@@ -7,6 +7,7 @@ from matplotlib.patches import Patch
 from scipy.cluster.hierarchy import dendrogram, linkage
 
 from src.analysis_engine.group_colors import get_group_color_map
+from src.shared.plot_style import DENDROGRAM_LINE_COLOR
 
 MAX_SAMPLE_LABELS_FOR_DENDROGRAM = 50
 
@@ -82,12 +83,12 @@ class SampleClustering:
             no_labels=not show_sample_labels,
             leaf_rotation=90,
             color_threshold=0,
-            above_threshold_color="#6e6e6e",
+            above_threshold_color=DENDROGRAM_LINE_COLOR,
             ax=dendrogram_axis,
         )
 
         for line_collection in dendrogram_axis.collections:
-            line_collection.set_color("#6e6e6e")
+            line_collection.set_color(DENDROGRAM_LINE_COLOR)
             line_collection.set_linewidth(0.55)
             line_collection.set_alpha(0.85)
 

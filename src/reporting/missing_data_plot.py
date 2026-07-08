@@ -4,6 +4,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from src.shared.plot_style import MISSING_DATA_COLOR
+
 
 @dataclass
 class MissingDataPlotResult:
@@ -31,17 +33,28 @@ class MissingDataPlot:
 
         plot_path = output_dir / "missing_data_plot.png"
 
-        plot_df = (
-            gene_missing_summary
-            .sort_values(by="missing_count", ascending=False)
-            .head(30)
-        )
+        max_genes_to_display = 20
 
         total_missing_values = gene_missing_summary[
             "missing_count"
         ].sum()
 
-        plt.figure(figsize=(12, 6))
+        genes_with_missing_values = gene_missing_summary[
+            gene_missing_summary["missing_count"] > 0
+        ]
+
+        plot_df = (
+            genes_with_missing_values
+            .sort_values(by="missing_count", ascending=False)
+            .head(max_genes_to_display)
+            .copy()
+        )
+
+        plot_df["gene_label"] = plot_df["gene"].astype(str).apply(
+            lambda label: self._truncate_label(label, max_length=32)
+        )
+
+        plt.figure(figsize=(10, 7))
 
         if total_missing_values == 0:
             plt.text(
@@ -55,17 +68,40 @@ class MissingDataPlot:
             plt.title("Missing Data Summary")
             plt.axis("off")
         else:
-            plt.bar(
-                plot_df["gene"],
-                plot_df["missing_count"],
+            display_df = plot_df.sort_values(
+                by="missing_count",
+                ascending=True,
             )
 
-            plt.title("Missing Data Summary")
-            plt.xlabel("Gene")
-            plt.ylabel("Missing Value Count")
-            plt.xticks(rotation=90)
+            plt.barh(
+                display_df["gene_label"],
+                display_df["missing_count"],
+                color=MISSING_DATA_COLOR,
+                edgecolor="white",
+                linewidth=0.8,
+            )
 
-        plt.tight_layout()
+            plt.title("Missing Data Summary (Top Genes by Missing Values)")
+            plt.xlabel("Missing Value Count")
+            plt.ylabel("Gene")
+
+            if len(genes_with_missing_values) > max_genes_to_display:
+                plt.figtext(
+                    0.5,
+                    0.01,
+                    (
+                        f"Showing top {max_genes_to_display} genes only. "
+                        "Full missing-value details are available in QC tables."
+                    ),
+                    ha="center",
+                    fontsize=8,
+                )
+                plt.tight_layout(rect=[0, 0.04, 1, 1])
+            else:
+                plt.tight_layout()
+
+        if total_missing_values == 0:
+            plt.tight_layout()
         plt.savefig(
             plot_path,
             dpi=300,
@@ -76,6 +112,12 @@ class MissingDataPlot:
         return MissingDataPlotResult(
             plot_path=str(plot_path),
         )
+
+    def _truncate_label(self, label: str, max_length: int) -> str:
+        if len(label) <= max_length:
+            return label
+
+        return f"{label[:max_length - 3]}..."
 
     def _validate_inputs(
         self,

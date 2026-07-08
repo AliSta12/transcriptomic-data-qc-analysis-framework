@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap
 
+from src.shared.plot_style import HEATMAP_COLORS
+
 MAX_SAMPLE_LABELS_FOR_HEATMAP = 50
 
 @dataclass
@@ -66,12 +68,8 @@ class HeatmapGenerator:
         )
 
         expression_cmap = LinearSegmentedColormap.from_list(
-            "pastel_expression",
-            [
-                "#4fb3bf",
-                "#f8fbfa",
-                "#ef767a",
-            ],
+            "project_expression",
+            HEATMAP_COLORS,
         )
 
         heatmap_array = heatmap_values.T.to_numpy()

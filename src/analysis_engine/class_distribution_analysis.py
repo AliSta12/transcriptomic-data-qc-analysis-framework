@@ -4,7 +4,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from src.analysis_engine.group_colors import get_group_color_map
+from src.analysis_engine.group_colors import get_group_color_map, get_ordered_groups
 
 
 @dataclass
@@ -44,8 +44,11 @@ class ClassDistributionAnalysis:
 
         plot_path = output_dir / "class_distribution.png"
 
-        groups = list(group_distribution.keys())
-        counts = list(group_distribution.values())
+        groups = get_ordered_groups(list(group_distribution.keys()))
+        counts = [
+            group_distribution[group]
+            for group in groups
+        ]
         total_samples = sum(counts)
 
         group_color_map = get_group_color_map(groups)

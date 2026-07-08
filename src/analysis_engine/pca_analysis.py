@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.decomposition import PCA
 
-from src.analysis_engine.group_colors import get_group_color_map
+from src.analysis_engine.group_colors import get_group_color_map, get_ordered_groups
 
 
 @dataclass
@@ -76,8 +76,8 @@ class PCAAnalysis:
 
         plt.figure(figsize=(10, 7))
 
-        groups = sorted(
-            pca_dataframe["group"].dropna().unique()
+        groups = get_ordered_groups(
+            pca_dataframe["group"].dropna().unique().tolist()
         )
         group_color_map = get_group_color_map(groups)
 

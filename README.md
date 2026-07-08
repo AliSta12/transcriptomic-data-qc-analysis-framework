@@ -131,61 +131,30 @@ Analiza wykonywana przez projekt ma charakter **eksploracyjny**, a nie formalny 
 Poniższy diagram pokazuje główne komponenty projektu, przepływ danych oraz zależności między modułami.
 
 ```mermaid
-flowchart LR
-
-    A[Publiczne dane / lokalny folder datasetu] --> B[Opcjonalne skrypty przygotowujące dane]
-    B --> C[Macierz ekspresji + metadane]
-
-    subgraph INTEGRACJA["Część integracyjna"]
-        C --> D[Dataset Intake - opcjonalny]
-        D --> D1[dataset_intake_report.csv]
-        D --> D2[selected_input_files.csv]
-    end
-
-    subgraph APLIKACJA["Część główna - aplikacja Streamlit"]
-        E[Streamlit UI] --> F[Manual upload]
-        E --> D
-
-        F --> G[Wybrane pliki wejściowe]
-        D --> G
-
-        G --> H[Data Cleaner & QC]
-
-        H --> H1[clean_expression_matrix.csv]
-        H --> H2[clean_metadata.csv]
-        H --> H3[audit_log.csv]
-        H --> H4[harmonization_report.csv]
-        H --> H5[data_quality_report.csv]
-        H --> H6[data_readiness_report.csv]
-        H --> H7[QC plots]
-
-        H1 --> I[Analysis Engine]
-        H2 --> I
-
-        I --> I1[Dataset Overview]
-        I --> I2[Class Distribution]
-        I --> I3[Most Variable Genes]
-        I --> I4[PCA]
-        I --> I5[Heatmap]
-        I --> I6[Sample Clustering]
-        I --> I7[analysis_summary.csv / analysis_summary.md]
-
-        H3 --> J[Final PDF Report Generator]
-        H4 --> J
-        H5 --> J
-        H6 --> J
-        H7 --> J
-        I1 --> J
-        I2 --> J
-        I3 --> J
-        I4 --> J
-        I5 --> J
-        I6 --> J
-        I7 --> J
-
-        J --> K[final_report.pdf]
-    end
+flowchart TD
+    A["Manual upload<br/>expression matrix + metadata"] --> C["Selected input files"]
+    B["Optional Dataset Intake<br/>local folder scan"] --> D["Intake outputs<br/>dataset_intake_report.csv<br/>selected_input_files.csv"]
+    D --> C
+    C --> E["Data Cleaner & QC"]
 ```
+
+```mermaid
+flowchart TD
+    A["Data Cleaner & QC"] --> B["Clean data<br/>clean_expression_matrix.csv<br/>clean_metadata.csv"]
+    A --> C["QC reports<br/>audit log<br/>harmonization<br/>quality/readiness"]
+
+    B --> D["Analysis Engine"]
+    D --> E["Analysis tables<br/>summary + variable gene rankings"]
+    D --> F["Visualizations<br/>class distribution, PCA, heatmap, clustering"]
+
+    B --> G["Final PDF Report"]
+    C --> G
+    E --> G
+    F --> G
+
+    G --> H["final_report.pdf"]
+```
+
 
 Opcjonalne skrypty przygotowujące dane znajdują się w katalogu `scripts/` i służą do przygotowania przykładowych datasetów demonstracyjnych lub walidacyjnych. Nie są one wymagane do standardowego użycia aplikacji Streamlit.
 

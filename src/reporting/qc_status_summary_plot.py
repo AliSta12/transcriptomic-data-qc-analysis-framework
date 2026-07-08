@@ -4,6 +4,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from src.shared.plot_style import QC_STATUS_COLORS
+
 
 @dataclass
 class QCStatusSummaryPlotResult:
@@ -39,10 +41,18 @@ class QCStatusSummaryPlot:
             )
         )
 
+        bar_colors = [
+            QC_STATUS_COLORS.get(status, "#999999")
+            for status in status_counts.index
+        ]
+
         plt.figure(figsize=(9, 5.5))
         bars = plt.bar(
             status_counts.index,
             status_counts.values,
+            color=bar_colors,
+            edgecolor="white",
+            linewidth=0.8,
         )
 
         for bar in bars:

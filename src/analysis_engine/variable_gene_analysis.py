@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap
 
+from src.shared.plot_style import VARIABLE_GENE_GRADIENT, VARIABLE_GENE_SINGLE_COLOR
+
 
 @dataclass
 class VariableGeneAnalysisResult:
@@ -64,19 +66,22 @@ class VariableGeneAnalysis:
         top_100_genes.to_csv(top_100_path, index=False)
 
         variance_cmap = LinearSegmentedColormap.from_list(
-            "pastel_variance",
-            [
-                "#d9f3f2",
-                "#7bd3d0",
-                "#168aad",
-            ],
+            "project_variance",
+            VARIABLE_GENE_GRADIENT,
         )
 
-        variance_values = top_50_genes["variance"]
+        max_genes_to_display = 20
+
+        plot_genes = top_50_genes.head(max_genes_to_display).copy()
+        plot_genes["gene_label"] = plot_genes["gene"].astype(str).apply(
+            lambda label: self._truncate_label(label, max_length=32)
+        )
+
+        variance_values = plot_genes["variance"]
 
         if variance_values.max() == variance_values.min():
             bar_colors = [
-                "#b197fc"
+                VARIABLE_GENE_SINGLE_COLOR
                 for _ in variance_values
             ]
         else:
@@ -89,22 +94,39 @@ class VariableGeneAnalysis:
                 for value in normalized_variance
             ]
 
-        plt.figure(figsize=(14, 7))
+        display_genes = plot_genes.sort_values(
+            by="variance",
+            ascending=True,
+        )
 
-        plt.bar(
-            top_50_genes["gene"],
-            top_50_genes["variance"],
-            color=bar_colors,
+        plt.figure(figsize=(10, 7))
+
+        plt.barh(
+            display_genes["gene_label"],
+            display_genes["variance"],
+            color=list(reversed(bar_colors)),
             edgecolor="white",
             linewidth=0.8,
         )
 
-        plt.title("Top 50 Most Variable Genes (Exploratory Ranking)")
-        plt.xlabel("Gene")
-        plt.ylabel("Variance")
-        plt.xticks(rotation=90, fontsize=8)
+        plt.title("Top 20 Most Variable Genes (Exploratory Ranking)")
+        plt.xlabel("Variance")
+        plt.ylabel("Gene")
 
-        plt.tight_layout()
+        if len(top_50_genes) > max_genes_to_display:
+            plt.figtext(
+                0.5,
+                0.01,
+                (
+                    f"Showing top {max_genes_to_display} genes for readability. "
+                    "Full top 50 and top 100 rankings are exported as CSV files."
+                ),
+                ha="center",
+                fontsize=8,
+            )
+            plt.tight_layout(rect=[0, 0.04, 1, 1])
+        else:
+            plt.tight_layout()
         plt.savefig(barplot_path, dpi=300, bbox_inches="tight")
         plt.close()
         
@@ -141,6 +163,12 @@ class VariableGeneAnalysis:
             barplot_path=str(barplot_path),
             summary_dataframe=summary_dataframe,
         )
+
+    def _truncate_label(self, label: str, max_length: int) -> str:
+        if len(label) <= max_length:
+            return label
+
+        return f"{label[:max_length - 3]}..."
 
     def _validate_inputs(
         self,

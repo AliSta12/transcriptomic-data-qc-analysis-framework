@@ -542,6 +542,36 @@ if input_files_available:
         else:
             st.session_state["dataset_name"] = expression_file.name
 
+        dataset_display_name = st.session_state["dataset_name"]
+
+        generic_expression_file_names = {
+            "expression_matrix.csv",
+            "expression_matrix.tsv",
+            "expression_matrix.xlsx",
+        }
+
+        if dataset_display_name.lower() in generic_expression_file_names:
+            if "dataset" in metadata_df.columns:
+                dataset_values = (
+                    metadata_df["dataset"]
+                    .dropna()
+                    .astype(str)
+                    .str.strip()
+                    .unique()
+                    .tolist()
+                )
+
+                if len(dataset_values) == 1 and dataset_values[0]:
+                    dataset_display_name = (
+                        f"{dataset_values[0]} analysis-ready dataset"
+                    )
+                else:
+                    dataset_display_name = "Analysis-ready expression dataset"
+            else:
+                dataset_display_name = "Analysis-ready expression dataset"
+
+        st.session_state["dataset_display_name"] = dataset_display_name
+
         st.session_state.pop("cleaner_result", None)
         st.session_state.pop("analysis_result", None)
 
@@ -1015,6 +1045,28 @@ if "analysis_result" in st.session_state:
         "cleaning and harmonization summary, exploratory analysis results and visualizations."
     )
 
+    default_dataset_display_name = st.session_state.get(
+        "dataset_name",
+        "Uploaded Dataset",
+    )
+
+    dataset_display_name = st.text_input(
+        "Dataset display name for PDF report",
+        value=st.session_state.get(
+            "dataset_display_name",
+            default_dataset_display_name,
+        ),
+        help=(
+            "Optional presentation name shown in the final PDF report. "
+            "This does not change the uploaded files, QC logic or analysis results."
+        ),
+    )
+
+    st.session_state["dataset_display_name"] = (
+        dataset_display_name.strip()
+        or default_dataset_display_name
+    )
+
     if st.button("Generate final PDF report"):
         try:
             start_time = time.time()
@@ -1024,8 +1076,11 @@ if "analysis_result" in st.session_state:
                     cleaner_result=st.session_state["cleaner_result"],
                     analysis_result=st.session_state["analysis_result"],
                     dataset_name=st.session_state.get(
-                        "dataset_name",
-                        "Uploaded Dataset",
+                        "dataset_display_name",
+                        st.session_state.get(
+                            "dataset_name",
+                            "Uploaded Dataset",
+                        ),
                     ),
                     output_directory="outputs/streamlit_demo",
                 )
