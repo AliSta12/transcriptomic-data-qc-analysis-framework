@@ -70,26 +70,26 @@ Aplikacja umożliwia wgranie danych, uruchomienie czyszczenia, ocenę jakości, 
 
 ## Architektura i przepływ danych
 
-```mermaid
-flowchart LR
-    A["Manual upload<br/>expression + metadata"] --> D["Selected input files"]
+```text
+Manual upload ───────────────┐
+                             ├──> Selected input files
+Dataset Intake (optional) ───┘
+        └──> Intake reports
 
-    B["Dataset Intake<br/>local folder scan"] --> C["File selection<br/>auto or manual"]
-    C --> D
-    B --> R1["Intake reports<br/>dataset_intake_report.csv<br/>selected_input_files.csv"]
+Selected input files ──> Data Cleaner & QC
+Data Cleaner & QC ─────> Clean data
+Data Cleaner & QC ─────> QC reports
 
-    D --> E["Data Cleaner & QC"]
+Clean data ────────────> Analysis Engine
+Analysis Engine ───────> Analysis results
 
-    E --> F["Clean data<br/>clean_expression_matrix.csv<br/>clean_metadata.csv"]
-    E --> R2["QC reports<br/>audit log<br/>harmonization<br/>quality/readiness"]
-
-    F --> G["Analysis Engine"]
-    G --> H["Analysis results<br/>tables, summaries, plots"]
-
-    F --> I["Final PDF Report"]
-    R2 --> I
-    H --> I
+Clean data ────────────┐
+QC reports ────────────┼──> Final PDF report
+Analysis results ──────┘
 ```
+
+Cały workflow jest obsługiwany z poziomu interfejsu Streamlit. Diagram pokazuje przepływ danych między głównymi modułami backendowymi i artefaktami wynikowymi.
+
 
 Wewnętrzny format danych po harmonizacji jest zawsze taki sam:
 
