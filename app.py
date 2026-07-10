@@ -628,6 +628,181 @@ def show_file_download_button(
         )
 
 
+
+def reset_input_dependent_results() -> None:
+    st.session_state.pop("cleaner_result", None)
+    st.session_state.pop("analysis_result", None)
+    st.session_state.pop("uploaded_files_signature", None)
+
+
+def format_intake_status(value: object) -> str:
+    status_text = str(value or "").replace("_", " ").strip()
+    return status_text.capitalize() if status_text else "Not selected"
+
+
+def safe_row_value(row: pd.Series, candidate_columns: list[str]) -> str:
+    for column in candidate_columns:
+        if column in row.index and pd.notna(row[column]):
+            value = str(row[column]).strip()
+            if value:
+                return value
+
+    return ""
+
+
+def build_intake_selection_status_table(selected_files: pd.DataFrame) -> pd.DataFrame:
+    if selected_files is None or selected_files.empty:
+        return pd.DataFrame(
+            [
+                {
+                    "Role": "expression_matrix",
+                    "Status": "Not selected",
+                    "File": "",
+                    "Confidence": "",
+                    "Reason": "No candidate selected.",
+                },
+                {
+                    "Role": "metadata",
+                    "Status": "Not selected",
+                    "File": "",
+                    "Confidence": "",
+                    "Reason": "No candidate selected.",
+                },
+            ]
+        )
+
+    rows = []
+
+    for _, row in selected_files.iterrows():
+        file_path = safe_row_value(row, ["file_path"])
+        rows.append(
+            {
+                "Role": safe_row_value(row, ["role"]),
+                "Status": format_intake_status(
+                    safe_row_value(row, ["selection_status"])
+                ),
+                "File": Path(file_path).name if file_path else "",
+                "Confidence": safe_row_value(row, ["confidence"]),
+                "Reason": safe_row_value(row, ["reason"]),
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+def get_discovery_candidate_paths(discovery_report: pd.DataFrame) -> list[str]:
+    if discovery_report is None or discovery_report.empty:
+        return []
+
+    if "file_path" not in discovery_report.columns:
+        return []
+
+    paths = (
+        discovery_report["file_path"]
+        .dropna()
+        .astype(str)
+        .drop_duplicates()
+        .tolist()
+    )
+
+    return paths
+
+
+def format_discovery_candidate_label(
+    file_path: str,
+    discovery_report: pd.DataFrame,
+) -> str:
+    label_parts = [Path(file_path).name]
+
+    if discovery_report is None or discovery_report.empty:
+        return label_parts[0]
+
+    if "file_path" not in discovery_report.columns:
+        return label_parts[0]
+
+    matching_rows = discovery_report[
+        discovery_report["file_path"].astype(str) == str(file_path)
+    ]
+
+    if matching_rows.empty:
+        return label_parts[0]
+
+    row = matching_rows.iloc[0]
+
+    role = safe_row_value(
+        row,
+        [
+            "predicted_role",
+            "role",
+            "classification",
+            "file_type",
+        ],
+    )
+    confidence = safe_row_value(row, ["confidence"])
+
+    expression_score = safe_row_value(
+        row,
+        [
+            "expression_score",
+            "expression_matrix_score",
+        ],
+    )
+    metadata_score = safe_row_value(
+        row,
+        [
+            "metadata_score",
+        ],
+    )
+
+    if role:
+        label_parts.append(f"role: {role}")
+
+    if confidence:
+        label_parts.append(f"confidence: {confidence}")
+
+    score_parts = []
+    if expression_score:
+        score_parts.append(f"expr {expression_score}")
+    if metadata_score:
+        score_parts.append(f"meta {metadata_score}")
+
+    if score_parts:
+        label_parts.append(", ".join(score_parts))
+
+    return " | ".join(label_parts)
+
+
+def preview_intake_candidate_file(file_path: str, label: str) -> None:
+    st.markdown(f"**{label}: `{Path(file_path).name}`**")
+    st.caption(f"Path: `{file_path}`")
+
+    try:
+        preview_df = read_local_table_file(file_path)
+    except Exception as error:
+        st.error(f"Could not preview this file: {error}")
+        return
+
+    preview_columns = preview_df.columns[:10].tolist()
+
+    show_table(
+        preview_df.loc[:, preview_columns].head(5),
+        height=220,
+    )
+
+
+def use_dataset_intake_files(
+    expression_path: str,
+    metadata_path: str,
+    selection_mode: str,
+) -> None:
+    st.session_state["use_dataset_intake_files"] = True
+    st.session_state["dataset_intake_expression_path"] = str(expression_path)
+    st.session_state["dataset_intake_metadata_path"] = str(metadata_path)
+    st.session_state["dataset_intake_selection_mode"] = selection_mode
+    reset_input_dependent_results()
+    st.rerun()
+
+
 st.header("1. Select input files")
 
 st.caption(
@@ -692,29 +867,18 @@ if selected_input_method == "Scan local folder":
         placeholder="Example: data/raw/my_dataset_folder",
         help=(
             "Paste a local folder path. The app accepts Linux/WSL paths, relative "
-            "project paths, Windows drive paths and \\\\wsl$ paths."
+            "project paths, Windows drive paths and \\wsl$ paths."
         ),
-    )
-
-    st.caption(
-        "Paste a folder path visible to this app. Examples: "
-        "`data/raw/my_dataset`, "
-        "`/home/alista/.../data/raw/my_dataset`, "
-        "`C:\\\\Users\\\\Name\\\\dataset`, "
-        "or `\\\\wsl$\\\\Ubuntu\\\\home\\\\alista\\\\dataset`. "
-        "The app will convert common Windows/WSL paths when possible."
     )
 
     if dataset_directory.strip():
         resolved_dataset_directory = normalize_local_folder_path(dataset_directory)
         st.caption(f"Resolved path used by the app: `{resolved_dataset_directory}`")
+    else:
+        st.info("Enter a local folder path to enable folder scanning.")
 
     intake_output_directory = "outputs/streamlit_dataset_intake"
-
     scan_button_disabled = not dataset_directory.strip()
-
-    if scan_button_disabled:
-        st.info("Enter a local folder path to enable folder scanning.")
 
     if st.button("Scan folder", disabled=scan_button_disabled):
         try:
@@ -730,7 +894,14 @@ if selected_input_method == "Scan local folder":
                     f"Selected path is not a folder: {dataset_directory_path}"
                 )
 
-            start_time = time.time()
+            reset_input_dependent_results()
+            st.session_state["use_dataset_intake_files"] = False
+            st.session_state.pop("dataset_intake_expression_path", None)
+            st.session_state.pop("dataset_intake_metadata_path", None)
+            st.session_state.pop("dataset_intake_selection_mode", None)
+            st.session_state.pop("show_input_review", None)
+            st.session_state.pop("input_review_source", None)
+            st.session_state.pop("input_review_message", None)
 
             with st.spinner("Scanning dataset folder with rule-based Dataset Intake..."):
                 intake_result = run_dataset_intake(
@@ -738,13 +909,8 @@ if selected_input_method == "Scan local folder":
                     output_directory=intake_output_directory,
                 )
 
-            elapsed_time = time.time() - start_time
-
             st.session_state["dataset_intake_result"] = intake_result
-
-            st.success(
-                f"Dataset Intake completed successfully in {elapsed_time:.2f} seconds."
-            )
+            st.success("Dataset Intake scan completed.")
 
         except Exception as error:
             st.error("Dataset Intake failed.")
@@ -761,83 +927,116 @@ if selected_input_method == "Scan local folder":
             .sum()
         )
 
+        st.subheader("Dataset Intake result")
+
         if auto_selected_count == 2:
             st.success(
-                "Dataset Intake found one high-confidence expression matrix "
-                "and one high-confidence metadata file."
+                "The scan found one high-confidence expression matrix and one "
+                "high-confidence metadata file."
             )
         else:
             st.warning(
-                "Dataset Intake could not safely auto-select all required files. "
-                "Manual review is required."
+                "Manual selection required. The app could not safely auto-select "
+                "both required files."
             )
 
-        st.subheader("Files selected by scan")
-        st.caption(
-            "The scan selected these files because each required role had one "
-            "high-confidence candidate. Review them before using them for cleaning."
+        st.markdown("#### Candidate selection status")
+        show_table(
+            build_intake_selection_status_table(selected_files),
+            height=170,
         )
 
-        selected_display = selected_files.copy()
-        selected_display["file_name"] = selected_display["file_path"].apply(
-            lambda value: Path(value).name if value else ""
-        )
-
-        st.dataframe(
-            selected_display[
-                [
-                    "role",
-                    "file_name",
-                    "selection_status",
-                    "confidence",
-                    "reason",
-                ]
-            ],
-            width="stretch",
-        )
+        candidate_paths = get_discovery_candidate_paths(discovery_report)
 
         if auto_selected_count == 2:
-            if st.button("Use these files"):
-                expression_row = selected_files[
-                    selected_files["role"] == "expression_matrix"
-                ].iloc[0]
-                metadata_row = selected_files[
-                    selected_files["role"] == "metadata"
-                ].iloc[0]
+            expression_row = selected_files[
+                selected_files["role"] == "expression_matrix"
+            ].iloc[0]
+            metadata_row = selected_files[
+                selected_files["role"] == "metadata"
+            ].iloc[0]
 
-                st.session_state["use_dataset_intake_files"] = True
-                st.session_state["dataset_intake_expression_path"] = expression_row["file_path"]
-                st.session_state["dataset_intake_metadata_path"] = metadata_row["file_path"]
+            expression_path = expression_row["file_path"]
+            metadata_path = metadata_row["file_path"]
 
-                st.session_state.pop("cleaner_result", None)
-                st.session_state.pop("analysis_result", None)
-                st.session_state.pop("uploaded_files_signature", None)
-
-                st.success(
-                    "These files are now selected for cleaning."
+            with st.expander("Preview selected candidate files", expanded=False):
+                preview_intake_candidate_file(
+                    expression_path,
+                    "Expression matrix candidate",
                 )
-        else:
-            st.info(
-                "Dataset Intake did not auto-select both required files. "
-                "Please use manual upload or review the detected files. "
-                "If this folder contains only a GEO series matrix file, preprocess it "
-                "into separate expression and metadata tables before running the Data Cleaner."
+                preview_intake_candidate_file(
+                    metadata_path,
+                    "Metadata candidate",
+                )
+
+            if st.button("Use selected files"):
+                use_dataset_intake_files(
+                    expression_path=expression_path,
+                    metadata_path=metadata_path,
+                    selection_mode="Auto-selected by Dataset Intake",
+                )
+
+        elif candidate_paths:
+            st.markdown("#### Manual candidate selection")
+            st.caption(
+                "Choose candidate files from the scan results. Preview is optional; "
+                "the Data Cleaner will still validate the selected files before analysis."
             )
 
-            if st.button("Go to Input Review"):
-                st.session_state["show_input_review"] = True
-                st.session_state["input_review_source"] = "Dataset Intake"
-                st.session_state["input_review_message"] = (
-                    "Dataset Intake could not safely auto-select both required input files. "
-                    "The dataset needs manual review before it can be cleaned and analyzed."
-                )
-                st.success(
-                    "Input Review guidance is now available below the Dataset Intake section."
+            expression_candidate = st.selectbox(
+                "Expression matrix candidate",
+                options=candidate_paths,
+                format_func=lambda value: format_discovery_candidate_label(
+                    value,
+                    discovery_report,
+                ),
+                key="manual_intake_expression_candidate",
+            )
+
+            metadata_candidate = st.selectbox(
+                "Metadata candidate",
+                options=candidate_paths,
+                format_func=lambda value: format_discovery_candidate_label(
+                    value,
+                    discovery_report,
+                ),
+                key="manual_intake_metadata_candidate",
+            )
+
+            same_file_selected = expression_candidate == metadata_candidate
+
+            if same_file_selected:
+                st.warning(
+                    "Expression matrix and metadata candidates should be two "
+                    "different files."
                 )
 
-        with st.expander("Show detailed Dataset Intake discovery report", expanded=False):
+            with st.expander("Preview selected candidate files", expanded=False):
+                preview_intake_candidate_file(
+                    expression_candidate,
+                    "Expression matrix candidate",
+                )
+                preview_intake_candidate_file(
+                    metadata_candidate,
+                    "Metadata candidate",
+                )
+
+            if st.button("Use selected files", disabled=same_file_selected):
+                use_dataset_intake_files(
+                    expression_path=expression_candidate,
+                    metadata_path=metadata_candidate,
+                    selection_mode="Manual selection after folder scan",
+                )
+
+        else:
+            st.info(
+                "No supported candidate files were detected. Use manual upload with "
+                "prepared expression and metadata files."
+            )
+
+        with st.expander("Detailed Dataset Intake discovery report", expanded=False):
             st.caption(
-                "Full audit-style report with file scores, preview statistics, "
+                "Technical discovery report with file scores, preview statistics, "
                 "classification reasons and warnings."
             )
 
@@ -847,25 +1046,32 @@ if selected_input_method == "Scan local folder":
                 )
             else:
                 discovery_display = discovery_report.copy()
-                discovery_display["file_path"] = discovery_display["file_path"].apply(
-                    lambda value: Path(value).name
-                )
 
-                st.dataframe(
+                if "file_path" in discovery_display.columns:
+                    discovery_display["file_path"] = discovery_display[
+                        "file_path"
+                    ].apply(lambda value: Path(value).name)
+
+                show_table(
                     discovery_display,
-                    width="stretch",
+                    height=340,
                 )
 
-        st.caption(
-            "Saved outputs: "
-            f"{intake_result['output_paths']['dataset_intake_report']} and "
-            f"{intake_result['output_paths']['selected_input_files']}"
-        )
+            output_paths = intake_result.get("output_paths", {})
 
-if st.session_state.get("show_input_review", False):
+            if output_paths:
+                st.caption(
+                    "Saved outputs: "
+                    f"{output_paths.get('dataset_intake_report', '')} and "
+                    f"{output_paths.get('selected_input_files', '')}"
+                )
+
+
+if (
+    st.session_state.get("show_input_review", False)
+    and st.session_state.get("input_review_source") == "Data Cleaner"
+):
     st.header("Input Review & Repair Guidance")
-
-    input_review_source = st.session_state.get("input_review_source", "Unknown")
 
     st.warning(
         st.session_state.get(
@@ -880,77 +1086,17 @@ if st.session_state.get("show_input_review", False):
 
     st.markdown(
         """
-        This section explains what the user should check manually when the app
-        cannot safely prepare the dataset using explicit rules.
-        """
-    )
+        The selected input files could not be processed by the available
+        rule-based cleaning rules. Before uploading corrected files, check that:
 
-    st.subheader("What was detected?")
-
-    if input_review_source == "Data Cleaner":
-        st.info(
-            "The issue was detected while running the Data Cleaner on the selected "
-            "input files. The files were loaded for preview, but they could not be "
-            "processed using the available rule-based cleaning rules."
-        )
-
-    elif input_review_source == "Dataset Intake":
-        if "dataset_intake_result" in st.session_state:
-            selected_files = st.session_state["dataset_intake_result"][
-                "selected_files"
-            ].copy()
-
-            selected_files["file_name"] = selected_files["file_path"].apply(
-                lambda value: Path(value).name if value else ""
-            )
-
-            st.dataframe(
-                selected_files[
-                    [
-                        "role",
-                        "file_name",
-                        "selection_status",
-                        "confidence",
-                        "reason",
-                    ]
-                ],
-                width="stretch",
-            )
-        else:
-            st.info("No Dataset Intake result is currently available.")
-
-    else:
-        st.info(
-            "Manual review was activated, but the source of the issue was not specified."
-        )
-
-    st.subheader("Recommended manual checks")
-
-    st.markdown(
-        """
-        Before uploading corrected files, check that:
-
-        - the expression matrix file contains samples and gene expression values,
-        - the metadata file contains at least `sample_id` and `group`,
+        - the expression matrix contains samples and gene expression values,
+        - metadata contains at least `sample_id` and `group`,
         - `sample_id` values match between expression data and metadata,
         - expression values are numeric,
         - files are saved as CSV, TSV or XLSX,
-        - the expression matrix can be harmonized to the internal format: sample × gene.
+        - the expression matrix can be harmonized to sample × gene format.
         """
     )
-
-    st.subheader("Recommended next action")
-
-    if input_review_source == "Data Cleaner":
-        st.info(
-            "Correct the uploaded expression matrix or metadata file, then upload "
-            "the corrected files again in section 1."
-        )
-    else:
-        st.info(
-            "Open the candidate files locally, correct the structure if needed, "
-            "save the corrected files, and upload them manually in section 1."
-        )
 
     if st.button("Hide Input Review"):
         st.session_state["show_input_review"] = False
@@ -972,6 +1118,7 @@ if use_intake_files:
             st.session_state["use_dataset_intake_files"] = False
             st.session_state.pop("dataset_intake_expression_path", None)
             st.session_state.pop("dataset_intake_metadata_path", None)
+            st.session_state.pop("dataset_intake_selection_mode", None)
             st.session_state.pop("uploaded_files_signature", None)
             st.session_state.pop("cleaner_result", None)
             st.session_state.pop("analysis_result", None)
@@ -1106,7 +1253,10 @@ if input_files_available:
     st.subheader("Current input selection")
 
     if use_intake_files:
-        current_source = "Scan local folder"
+        current_source = st.session_state.get(
+            "dataset_intake_selection_mode",
+            "Scan local folder",
+        )
         current_expression_name = Path(
             st.session_state["dataset_intake_expression_path"]
         ).name
