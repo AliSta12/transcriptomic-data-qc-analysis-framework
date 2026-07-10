@@ -72,18 +72,24 @@ Aplikacja umożliwia wgranie danych, uruchomienie czyszczenia, ocenę jakości, 
 
 ```mermaid
 flowchart TD
-    A["Manual upload<br/>expression matrix + metadata"] --> C["Selected input files"]
-    B["Dataset Intake<br/>local folder scan"] --> C
-    C --> D["Data Cleaner & QC"]
-    D --> E["Clean data<br/>clean_expression_matrix.csv<br/>clean_metadata.csv"]
-    D --> F["QC reports<br/>audit_log.csv<br/>harmonization_report.csv<br/>data_quality_report.csv<br/>data_readiness_report.csv"]
-    E --> G["Analysis Engine"]
-    G --> H["Tables and summaries"]
-    G --> I["Plots<br/>PCA, heatmap, clustering"]
-    E --> J["Final PDF Report"]
-    F --> J
-    H --> J
-    I --> J
+    A["Manual upload<br/>expression matrix + metadata"] --> D["Selected input files<br/>expression matrix + metadata"]
+
+    B["Dataset Intake<br/>local folder scan"] --> C["File selection<br/>auto-selected or user-selected"]
+    B --> R1["Dataset Intake reports<br/>dataset_intake_report.csv<br/>selected_input_files.csv"]
+
+    C --> D
+
+    D --> E["Data Cleaner & QC"]
+
+    E --> F["Clean data<br/>clean_expression_matrix.csv<br/>clean_metadata.csv"]
+    E --> R2["QC reports<br/>audit_log.csv<br/>harmonization_report.csv<br/>data_quality_report.csv<br/>data_readiness_report.csv"]
+
+    F --> G["Analysis Engine"]
+    G --> H["Analysis results<br/>tables, summaries, plots"]
+
+    F --> I["Final PDF Report"]
+    R2 --> I
+    H --> I
 ```
 
 Wewnętrzny format danych po harmonizacji jest zawsze taki sam:
