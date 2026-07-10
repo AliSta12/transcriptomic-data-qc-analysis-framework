@@ -451,36 +451,17 @@ def show_readiness_summary(data_readiness_report: pd.DataFrame) -> None:
     elif status == "READY_WITH_WARNINGS":
         st.warning(
             "READY_WITH_WARNINGS — Dataset is ready for exploratory analysis, "
-            "but warnings should be reviewed."
+            "but QC warnings should be reviewed before interpretation."
         )
     else:
         st.error(
             f"{status} — Dataset requires review before exploratory analysis."
         )
 
-    metric_columns = st.columns(4)
-    metric_columns[0].metric(
-        "PASS checks",
-        get_readiness_value(data_readiness_report, ["pass_count"], "0"),
+    st.caption(
+        "Detailed QC findings are summarized below. Full QC reports are available "
+        "in Data Cleaner downloads."
     )
-    metric_columns[1].metric(
-        "WARNING checks",
-        get_readiness_value(data_readiness_report, ["warning_count"], "0"),
-    )
-    metric_columns[2].metric(
-        "FAIL checks",
-        get_readiness_value(data_readiness_report, ["fail_count"], "0"),
-    )
-    metric_columns[3].metric(
-        "REQUIRES REVIEW checks",
-        get_readiness_value(data_readiness_report, ["review_count"], "0"),
-    )
-
-    details = get_readiness_value(data_readiness_report, ["details"], "")
-
-    if details:
-        st.markdown("**Details**")
-        st.write(details)
 
 
 def metric_label_for_check(check_name: str) -> str:
@@ -531,17 +512,6 @@ def show_qc_decision_summary(data_quality_report: pd.DataFrame) -> None:
         data_quality_report["status"] == "PASS"
     ]
 
-    status_counts = data_quality_report["status"].value_counts()
-    warning_count = int(status_counts.get("WARNING", 0))
-    fail_count = int(status_counts.get("FAIL", 0))
-    review_count = int(status_counts.get("REQUIRES REVIEW", 0))
-
-    st.caption(
-        f"{warning_count} warnings detected. "
-        f"{fail_count} failed checks. "
-        f"{review_count} checks require manual review."
-    )
-
     if issue_rows.empty:
         st.success("No warnings, failed checks or manual-review checks detected.")
     else:
@@ -550,15 +520,13 @@ def show_qc_decision_summary(data_quality_report: pd.DataFrame) -> None:
         for _, row in issue_rows.iterrows():
             status = str(row["status"])
             check = str(row["check"])
-            metric = row["metric"]
 
             issue_summary_rows.append(
                 {
                     "Status": status,
                     "Check": check,
-                    "Metric value": metric,
-                    "Detected issue": metric_label_for_check(check),
-                    "Rule-based decision": qc_decision_for_check(check, status),
+                    "Count": row["metric"],
+                    "Action": qc_decision_for_check(check, status),
                 }
             )
 
@@ -579,11 +547,14 @@ def show_qc_decision_summary(data_quality_report: pd.DataFrame) -> None:
                 st.write(details)
 
     if not passed_rows.empty:
+        passed_check_names = (
+            passed_rows["check"]
+            .astype(str)
+            .tolist()
+        )
+
         with st.expander(f"Passed checks ({len(passed_rows)})", expanded=False):
-            show_table(
-                passed_rows[["check", "status", "metric"]],
-                height=180,
-            )
+            st.write(", ".join(passed_check_names))
 
 
 def show_audit_decision_summary(audit_log: pd.DataFrame) -> None:
@@ -1242,18 +1213,11 @@ if "cleaner_result" in st.session_state:
 
     with st.expander("QC check details", expanded=False):
         st.caption(
-            "QC statuses summarize detected issues. WARNING means that the dataset "
-            "can still be analyzed, but the issue should be reviewed in the report."
+            "Compact summary of QC findings that may affect analysis readiness. "
+            "The full data_quality_report.csv is available in Data Cleaner downloads."
         )
 
         show_qc_decision_summary(result.data_quality_report)
-
-        with st.expander("Full QC check table", expanded=False):
-            show_table(
-                result.data_quality_report,
-                height=320,
-            )
-
     with st.expander("Harmonization summary"):
         st.caption(
             "This report documents structural changes applied before analysis, "
@@ -1477,43 +1441,60 @@ if "analysis_result" in st.session_state:
 
         overview_df = analysis.dataset_overview.summary_dataframe
 
-        overview_columns = st.columns(3)
-        overview_columns[0].metric(
-            "Samples",
-            get_metric_value(overview_df, "sample_count", integer=True),
-        )
-        overview_columns[1].metric(
-            "Genes",
-            get_metric_value(overview_df, "gene_count", integer=True),
-        )
-        overview_columns[2].metric(
-            "Groups",
-            get_metric_value(overview_df, "group_count", integer=True),
+        overview_summary = pd.DataFrame(
+            [
+                {
+                    "Metric": "Samples",
+                    "Value": get_metric_value(
+                        overview_df,
+                        "sample_count",
+                        integer=True,
+                    ),
+                },
+                {
+                    "Metric": "Genes",
+                    "Value": get_metric_value(
+                        overview_df,
+                        "gene_count",
+                        integer=True,
+                    ),
+                },
+                {
+                    "Metric": "Groups",
+                    "Value": get_metric_value(
+                        overview_df,
+                        "group_count",
+                        integer=True,
+                    ),
+                },
+                {
+                    "Metric": "Mean expression",
+                    "Value": get_metric_value(
+                        overview_df,
+                        "mean_expression",
+                    ),
+                },
+                {
+                    "Metric": "Median expression",
+                    "Value": get_metric_value(
+                        overview_df,
+                        "median_expression",
+                    ),
+                },
+                {
+                    "Metric": "Expression range",
+                    "Value": (
+                        f"{get_metric_value(overview_df, 'min_expression')} – "
+                        f"{get_metric_value(overview_df, 'max_expression')}"
+                    ),
+                },
+            ]
         )
 
-        expression_columns = st.columns(3)
-        expression_columns[0].metric(
-            "Mean expression",
-            get_metric_value(overview_df, "mean_expression"),
+        show_table(
+            overview_summary,
+            height=260,
         )
-        expression_columns[1].metric(
-            "Median expression",
-            get_metric_value(overview_df, "median_expression"),
-        )
-        expression_columns[2].metric(
-            "Expression range",
-            (
-                f"{get_metric_value(overview_df, 'min_expression')} – "
-                f"{get_metric_value(overview_df, 'max_expression')}"
-            ),
-        )
-
-        with st.expander("Show dataset overview table", expanded=False):
-            show_table(
-                prepare_overview_display_dataframe(overview_df),
-                height=220,
-            )
-
     with class_tab:
         st.subheader("Class Distribution")
         st.caption(

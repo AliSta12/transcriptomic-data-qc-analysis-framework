@@ -137,13 +137,6 @@ class AnalysisSummaryGenerator:
                     "result": class_distribution_text,
                 },
                 {
-                    "analysis_step": "Variable Gene Analysis",
-                    "result": (
-                        f"{int(variable_values['total_genes_analyzed'])} genes analyzed; "
-                        "top 50 and top 100 variable genes exported"
-                    ),
-                },
-                {
                     "analysis_step": "PCA Analysis",
                     "result": (
                         f"PCA plot generated; PC1 explains "
@@ -151,6 +144,13 @@ class AnalysisSummaryGenerator:
                         f"and PC2 explains "
                         f"{float(pca_values['pc2_variance_explained']) * 100:.1f}% "
                         "of variance"
+                    ),
+                },
+                {
+                    "analysis_step": "Variable Gene Analysis",
+                    "result": (
+                        f"{int(variable_values['total_genes_analyzed'])} genes analyzed; "
+                        "top 50 and top 100 variable genes exported"
                     ),
                 },
                 
@@ -179,8 +179,8 @@ class AnalysisSummaryGenerator:
         section_names = [
             "Dataset Overview",
             "Class Distribution",
-            "Variable Gene Analysis",
             "PCA Analysis",
+            "Variable Gene Analysis",
             "Heatmap",
             "Sample Clustering",
         ]
