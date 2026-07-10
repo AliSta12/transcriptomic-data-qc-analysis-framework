@@ -71,18 +71,17 @@ Aplikacja umożliwia wgranie danych, uruchomienie czyszczenia, ocenę jakości, 
 ## Architektura i przepływ danych
 
 ```mermaid
-flowchart TD
-    A["Manual upload<br/>expression matrix + metadata"] --> D["Selected input files<br/>expression matrix + metadata"]
+flowchart LR
+    A["Manual upload<br/>expression + metadata"] --> D["Selected input files"]
 
-    B["Dataset Intake<br/>local folder scan"] --> C["File selection<br/>auto-selected or user-selected"]
-    B --> R1["Dataset Intake reports<br/>dataset_intake_report.csv<br/>selected_input_files.csv"]
-
+    B["Dataset Intake<br/>local folder scan"] --> C["File selection<br/>auto or manual"]
     C --> D
+    B --> R1["Intake reports<br/>dataset_intake_report.csv<br/>selected_input_files.csv"]
 
     D --> E["Data Cleaner & QC"]
 
     E --> F["Clean data<br/>clean_expression_matrix.csv<br/>clean_metadata.csv"]
-    E --> R2["QC reports<br/>audit_log.csv<br/>harmonization_report.csv<br/>data_quality_report.csv<br/>data_readiness_report.csv"]
+    E --> R2["QC reports<br/>audit log<br/>harmonization<br/>quality/readiness"]
 
     F --> G["Analysis Engine"]
     G --> H["Analysis results<br/>tables, summaries, plots"]
