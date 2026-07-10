@@ -15,6 +15,18 @@ st.set_page_config(
     layout="wide",
 )
 
+def reset_analysis_state() -> None:
+    """Clear current Streamlit state and recreate reset-aware input widgets."""
+    next_reset_id = int(st.session_state.get("analysis_reset_id", 0)) + 1
+    st.session_state.clear()
+    st.session_state["analysis_reset_id"] = next_reset_id
+
+
+def analysis_widget_key(name: str) -> str:
+    """Return a reset-aware key for widgets that must be recreated after reset."""
+    return f"{name}_{st.session_state.get('analysis_reset_id', 0)}"
+
+
 st.title("Transcriptomic Data QC & Analysis Framework")
 
 st.markdown(
@@ -23,6 +35,19 @@ st.markdown(
     of transcriptomic expression datasets.
     """
 )
+
+reset_col, _ = st.columns([0.16, 0.84])
+
+with reset_col:
+    if st.button(
+        "↺ New analysis",
+        help=(
+            "Clear current app state and start a new analysis. "
+            "Input datasets and project files are not deleted."
+        ),
+    ):
+        reset_analysis_state()
+        st.rerun()
 
 
 
@@ -825,6 +850,7 @@ selected_input_method = st.radio(
     index=1 if current_use_intake_files else 0,
     horizontal=True,
     label_visibility="collapsed",
+    key=analysis_widget_key("selected_input_method"),
 )
 
 if selected_input_method == "Manual upload" and current_use_intake_files:
@@ -874,6 +900,7 @@ if selected_input_method == "Scan local folder":
             "Paste a local folder path. The app accepts Linux/WSL paths, relative "
             "project paths, Windows drive paths and \\wsl$ paths."
         ),
+        key=analysis_widget_key("dataset_directory"),
     )
 
     if dataset_directory.strip():
@@ -1136,11 +1163,13 @@ if not use_intake_files and selected_input_method == "Manual upload":
     expression_file = st.file_uploader(
         "Upload expression matrix",
         type=["csv", "tsv", "xlsx"],
+        key=analysis_widget_key("expression_file_uploader"),
     )
 
     metadata_file = st.file_uploader(
         "Upload metadata file",
         type=["csv", "tsv", "xlsx"],
+        key=analysis_widget_key("metadata_file_uploader"),
     )
 elif selected_input_method == "Scan local folder" and not use_intake_files:
     pass
@@ -1784,6 +1813,7 @@ if "analysis_result" in st.session_state:
             "Optional presentation name shown in the final PDF report. "
             "This does not change the uploaded files, QC logic or analysis results."
         ),
+        key=analysis_widget_key("dataset_display_name"),
     )
 
     st.session_state["dataset_display_name"] = (
