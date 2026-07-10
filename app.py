@@ -536,6 +536,10 @@ def show_qc_decision_summary(data_quality_report: pd.DataFrame) -> None:
         )
 
         with st.expander("Detailed QC explanations", expanded=False):
+            st.caption(
+                "Short explanations for QC findings shown in the summary table above."
+            )
+
             for _, row in issue_rows.iterrows():
                 status = str(row["status"])
                 check = str(row["check"])
@@ -543,8 +547,9 @@ def show_qc_decision_summary(data_quality_report: pd.DataFrame) -> None:
                 details = str(row["details"])
 
                 st.markdown(f"**{check} — {status}**")
-                st.caption(f"{metric_label_for_check(check)}: {metric}")
-                st.write(details)
+                st.write(
+                    f"{metric_label_for_check(check)}: {metric}. {details}"
+                )
 
     if not passed_rows.empty:
         passed_check_names = (
@@ -1388,22 +1393,8 @@ if "cleaner_result" in st.session_state:
         st.markdown("#### Decision summary")
         show_audit_decision_summary(result.audit_log)
 
-        st.markdown("#### Full audit log")
-        show_table(
-            result.audit_log,
-            height=320,
-            column_order=[
-                "status",
-                "module",
-                "action",
-                "target",
-                "decision",
-                "rule_applied",
-                "reason",
-                "old_value",
-                "new_value",
-                "timestamp",
-            ],
+        st.caption(
+            "Full audit trail is available as audit_log.csv in Data Cleaner downloads."
         )
 
     with st.expander("Cleaned expression matrix preview"):
