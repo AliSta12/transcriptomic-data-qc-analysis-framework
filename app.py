@@ -25,6 +25,7 @@ st.markdown(
 )
 
 
+
 def read_uploaded_file(uploaded_file) -> pd.DataFrame:
     filename = uploaded_file.name.lower()
 
@@ -101,6 +102,561 @@ def normalize_local_folder_path(raw_path: str) -> Path:
     return Path(cleaned_path).expanduser()
 
 
+def format_column_label(column_name: str) -> str:
+    label_map = {
+        "sample_id": "Sample ID",
+        "overall_status": "Overall status",
+        "readiness_status": "Readiness status",
+        "pass_count": "PASS checks",
+        "warning_count": "WARNING checks",
+        "fail_count": "FAIL checks",
+        "review_count": "REQUIRES REVIEW checks",
+        "analysis_step": "Analysis step",
+        "rule_applied": "Rule applied",
+        "old_value": "Old value",
+        "new_value": "New value",
+    }
+
+    column_text = str(column_name)
+    return label_map.get(
+        column_text,
+        column_text.replace("_", " ").strip().capitalize(),
+    )
+
+
+def prepare_display_dataframe(
+    dataframe: pd.DataFrame,
+    column_order: list[str] | None = None,
+    max_rows: int | None = None,
+) -> pd.DataFrame:
+    display_df = dataframe.copy()
+
+    if column_order is not None:
+        ordered_columns = [
+            column for column in column_order
+            if column in display_df.columns
+        ]
+        remaining_columns = [
+            column for column in display_df.columns
+            if column not in ordered_columns
+        ]
+        display_df = display_df[ordered_columns + remaining_columns]
+
+    if max_rows is not None:
+        display_df = display_df.head(max_rows)
+
+    return display_df.rename(
+        columns={
+            column: format_column_label(column)
+            for column in display_df.columns
+        }
+    )
+
+
+
+
+def table_column_width(column_name: str) -> str | None:
+    compact_columns = {
+        "Status",
+        "Metric",
+        "Metric value",
+        "Value",
+        "Entries",
+        "Count",
+        "PASS checks",
+        "WARNING checks",
+        "FAIL checks",
+        "REQUIRES REVIEW checks",
+        "Group",
+        "Dataset",
+        "Stage",
+        "Location",
+        "Gender",
+        "Age",
+        "Individual id",
+    }
+
+    medium_columns = {
+        "Sample ID",
+        "Check",
+        "Module",
+        "Action",
+        "Target",
+        "Decision",
+        "Original element",
+        "Standardized element",
+        "Element type",
+        "Transformation",
+        "Old value",
+        "New value",
+        "Timestamp",
+        "Analysis step",
+    }
+
+    wide_columns = {
+        "Details",
+        "Reason",
+        "Rule applied",
+        "Rule-based decision",
+        "Detected issue",
+        "Result",
+    }
+
+    if column_name in compact_columns:
+        return "small"
+
+    if column_name in medium_columns:
+        return "medium"
+
+    if column_name in wide_columns:
+        return "large"
+
+    # Unknown columns, including gene columns, should use Streamlit auto-sizing.
+    return None
+
+
+def build_table_column_config(dataframe: pd.DataFrame) -> dict:
+    if not hasattr(st, "column_config"):
+        return {}
+
+    column_config = {}
+
+    for column in dataframe.columns:
+        width = table_column_width(str(column))
+
+        if width is None:
+            continue
+
+        try:
+            column_config[column] = st.column_config.Column(
+                width=width,
+            )
+        except Exception:
+            return {}
+
+    return column_config
+
+
+
+def format_table_cell_value(value: object) -> str:
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):
+        pass
+
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+
+    return str(value)
+
+
+def left_align_table_values(dataframe: pd.DataFrame) -> pd.DataFrame:
+    display_df = dataframe.copy()
+
+    for column in display_df.columns:
+        display_df[column] = display_df[column].map(format_table_cell_value)
+
+    return display_df
+
+
+def show_table(
+    dataframe: pd.DataFrame,
+    height: int = 280,
+    column_order: list[str] | None = None,
+    max_rows: int | None = None,
+) -> None:
+    if dataframe is None or dataframe.empty:
+        st.info("No rows to display.")
+        return
+
+    display_df = prepare_display_dataframe(
+        dataframe=dataframe,
+        column_order=column_order,
+        max_rows=max_rows,
+    )
+    display_df = left_align_table_values(display_df)
+
+    column_config = build_table_column_config(display_df)
+
+    try:
+        st.dataframe(
+            display_df,
+            width="stretch",
+            height=height,
+            hide_index=True,
+            column_config=column_config,
+        )
+    except TypeError:
+        st.dataframe(
+            display_df,
+            width="stretch",
+            height=height,
+        )
+
+
+def build_expression_preview(
+    expression_df: pd.DataFrame,
+    max_rows: int = 10,
+    max_genes: int = 10,
+) -> pd.DataFrame:
+    if "sample_id" not in expression_df.columns:
+        return expression_df.head(max_rows)
+
+    gene_columns = [
+        column for column in expression_df.columns
+        if column != "sample_id"
+    ]
+    preview_columns = ["sample_id"] + gene_columns[:max_genes]
+    return expression_df[preview_columns].head(max_rows)
+
+
+def show_centered_plot(
+    image_path: str,
+    size: str = "medium",
+) -> None:
+    plot_widths = {
+        "medium": 900,
+        "heatmap": 900,
+        "wide": 1000,
+    }
+    column_ratios = {
+        "medium": [0.75, 3, 0.75],
+        "heatmap": [0.75, 3, 0.75],
+        "wide": [0.5, 3, 0.5],
+    }
+
+    plot_width = plot_widths.get(size, plot_widths["medium"])
+    ratios = column_ratios.get(size, column_ratios["medium"])
+
+    _, center, _ = st.columns(ratios)
+
+    with center:
+        st.image(
+            image_path,
+            width=plot_width,
+        )
+
+
+def format_metric_display_value(
+    value: object,
+    integer: bool = False,
+) -> str:
+    if pd.isna(value):
+        return "N/A"
+
+    if integer:
+        try:
+            numeric_value = float(value)
+            if numeric_value.is_integer():
+                return str(int(numeric_value))
+        except (TypeError, ValueError):
+            pass
+
+    return str(value)
+
+
+def humanize_metric_name(metric_name: str) -> str:
+    metric_labels = {
+        "sample_count": "Sample count",
+        "gene_count": "Gene count",
+        "group_count": "Group count",
+        "min_expression": "Minimum expression",
+        "max_expression": "Maximum expression",
+        "mean_expression": "Mean expression",
+        "median_expression": "Median expression",
+    }
+
+    metric_text = str(metric_name)
+    return metric_labels.get(
+        metric_text,
+        metric_text.replace("_", " ").strip().capitalize(),
+    )
+
+
+def prepare_overview_display_dataframe(
+    dataframe: pd.DataFrame,
+) -> pd.DataFrame:
+    display_df = dataframe.copy()
+
+    if "metric" in display_df.columns and "value" in display_df.columns:
+        integer_metrics = {
+            "sample_count",
+            "gene_count",
+            "group_count",
+        }
+
+        display_df["value"] = display_df.apply(
+            lambda row: format_metric_display_value(
+                row["value"],
+                integer=str(row["metric"]) in integer_metrics,
+            ),
+            axis=1,
+        )
+        display_df["metric"] = display_df["metric"].apply(humanize_metric_name)
+
+    return display_df
+
+
+def get_metric_value(
+    dataframe: pd.DataFrame,
+    metric_name: str,
+    default: str = "N/A",
+    integer: bool = False,
+) -> str:
+    if dataframe is None or dataframe.empty:
+        return default
+
+    if "metric" not in dataframe.columns or "value" not in dataframe.columns:
+        return default
+
+    matching_rows = dataframe[dataframe["metric"] == metric_name]
+
+    if matching_rows.empty:
+        return default
+
+    return format_metric_display_value(
+        matching_rows.iloc[0]["value"],
+        integer=integer,
+    )
+
+
+def get_readiness_value(
+    dataframe: pd.DataFrame,
+    candidate_columns: list[str],
+    default: str = "N/A",
+) -> str:
+    if dataframe is None or dataframe.empty:
+        return default
+
+    row = dataframe.iloc[0]
+
+    for column in candidate_columns:
+        if column in dataframe.columns:
+            value = row[column]
+            if pd.notna(value):
+                return str(value)
+
+    return default
+
+
+def show_readiness_summary(data_readiness_report: pd.DataFrame) -> None:
+    status = get_readiness_value(
+        data_readiness_report,
+        ["overall_status", "readiness_status"],
+    )
+
+    if status == "READY_FOR_ANALYSIS":
+        st.success("READY_FOR_ANALYSIS — Dataset is ready for exploratory analysis.")
+    elif status == "READY_WITH_WARNINGS":
+        st.warning(
+            "READY_WITH_WARNINGS — Dataset is ready for exploratory analysis, "
+            "but warnings should be reviewed."
+        )
+    else:
+        st.error(
+            f"{status} — Dataset requires review before exploratory analysis."
+        )
+
+    metric_columns = st.columns(4)
+    metric_columns[0].metric(
+        "PASS checks",
+        get_readiness_value(data_readiness_report, ["pass_count"], "0"),
+    )
+    metric_columns[1].metric(
+        "WARNING checks",
+        get_readiness_value(data_readiness_report, ["warning_count"], "0"),
+    )
+    metric_columns[2].metric(
+        "FAIL checks",
+        get_readiness_value(data_readiness_report, ["fail_count"], "0"),
+    )
+    metric_columns[3].metric(
+        "REQUIRES REVIEW checks",
+        get_readiness_value(data_readiness_report, ["review_count"], "0"),
+    )
+
+    details = get_readiness_value(data_readiness_report, ["details"], "")
+
+    if details:
+        st.markdown("**Details**")
+        st.write(details)
+
+
+def metric_label_for_check(check_name: str) -> str:
+    label_map = {
+        "Numeric Data Check": "Detected invalid expression values",
+        "Missing Data": "Detected missing expression values",
+        "Duplicate Samples": "Detected duplicate samples",
+        "Duplicate Genes": "Detected duplicate genes",
+        "Metadata Consistency": "Detected metadata issues",
+        "Constant Genes": "Detected constant genes",
+        "Low Variance Genes": "Detected low-variance genes",
+    }
+    return label_map.get(str(check_name), "Metric value")
+
+
+def qc_decision_for_check(check_name: str, status: str) -> str:
+    if status == "FAIL":
+        return "Resolve before analysis"
+
+    if status == "REQUIRES REVIEW":
+        return "Manual review required"
+
+    decision_map = {
+        "Numeric Data Check": "Converted invalid values to missing",
+        "Missing Data": "Imputed low-missing genes; removed high-missing genes",
+        "Constant Genes": "Removed from analytical dataset",
+        "Duplicate Samples": "No automatic removal",
+        "Duplicate Genes": "Aggregated when numeric",
+        "Metadata Consistency": "Checked sample/group compatibility",
+        "Low Variance Genes": "Reported for review",
+    }
+
+    return decision_map.get(str(check_name), "See detailed explanation")
+
+
+def show_qc_decision_summary(data_quality_report: pd.DataFrame) -> None:
+    st.markdown("#### Issues requiring attention")
+
+    if data_quality_report is None or data_quality_report.empty:
+        st.info("No QC checks available.")
+        return
+
+    issue_statuses = ["WARNING", "FAIL", "REQUIRES REVIEW"]
+    issue_rows = data_quality_report[
+        data_quality_report["status"].isin(issue_statuses)
+    ]
+    passed_rows = data_quality_report[
+        data_quality_report["status"] == "PASS"
+    ]
+
+    status_counts = data_quality_report["status"].value_counts()
+    warning_count = int(status_counts.get("WARNING", 0))
+    fail_count = int(status_counts.get("FAIL", 0))
+    review_count = int(status_counts.get("REQUIRES REVIEW", 0))
+
+    st.caption(
+        f"{warning_count} warnings detected. "
+        f"{fail_count} failed checks. "
+        f"{review_count} checks require manual review."
+    )
+
+    if issue_rows.empty:
+        st.success("No warnings, failed checks or manual-review checks detected.")
+    else:
+        issue_summary_rows = []
+
+        for _, row in issue_rows.iterrows():
+            status = str(row["status"])
+            check = str(row["check"])
+            metric = row["metric"]
+
+            issue_summary_rows.append(
+                {
+                    "Status": status,
+                    "Check": check,
+                    "Metric value": metric,
+                    "Detected issue": metric_label_for_check(check),
+                    "Rule-based decision": qc_decision_for_check(check, status),
+                }
+            )
+
+        show_table(
+            pd.DataFrame(issue_summary_rows),
+            height=180,
+        )
+
+        with st.expander("Detailed QC explanations", expanded=False):
+            for _, row in issue_rows.iterrows():
+                status = str(row["status"])
+                check = str(row["check"])
+                metric = row["metric"]
+                details = str(row["details"])
+
+                st.markdown(f"**{check} — {status}**")
+                st.caption(f"{metric_label_for_check(check)}: {metric}")
+                st.write(details)
+
+    if not passed_rows.empty:
+        with st.expander(f"Passed checks ({len(passed_rows)})", expanded=False):
+            show_table(
+                passed_rows[["check", "status", "metric"]],
+                height=180,
+            )
+
+
+def show_audit_decision_summary(audit_log: pd.DataFrame) -> None:
+    if audit_log is None or audit_log.empty:
+        st.info("No audit log entries recorded.")
+        return
+
+    summary_columns = [
+        column for column in [
+            "status",
+            "action",
+            "decision",
+            "rule_applied",
+        ]
+        if column in audit_log.columns
+    ]
+
+    if not summary_columns:
+        return
+
+    summary_df = (
+        audit_log
+        .groupby(summary_columns, dropna=False)
+        .size()
+        .reset_index(name="entries")
+    )
+
+    show_table(
+        summary_df,
+        height=180,
+    )
+
+
+def show_dataframe_download_button(
+    file_name: str,
+    label: str,
+    dataframe: pd.DataFrame,
+    key: str,
+) -> None:
+    st.download_button(
+        label=label,
+        data=dataframe.to_csv(index=False).encode("utf-8"),
+        file_name=file_name,
+        mime="text/csv",
+        key=key,
+    )
+
+
+def show_file_download_button(
+    file_path: Path,
+    label: str,
+    key: str,
+) -> None:
+    if not file_path.exists():
+        return
+
+    if file_path.suffix == ".png":
+        mime_type = "image/png"
+    elif file_path.suffix == ".md":
+        mime_type = "text/markdown"
+    else:
+        mime_type = "text/csv"
+
+    with open(file_path, "rb") as output_file:
+        st.download_button(
+            label=label,
+            data=output_file,
+            file_name=file_path.name,
+            mime=mime_type,
+            key=key,
+        )
+
+
 st.header("1. Select input files")
 
 st.caption(
@@ -127,9 +683,7 @@ if selected_input_method == "Manual upload" and current_use_intake_files:
     st.session_state.pop("uploaded_files_signature", None)
     current_use_intake_files = False
 
-st.subheader("Input requirements")
-
-with st.expander("Show input requirements", expanded=False):
+with st.expander("Input requirements", expanded=False):
     if selected_input_method == "Manual upload":
         st.markdown(
             """
@@ -593,40 +1147,43 @@ if input_files_available:
         current_expression_name = expression_file.name
         current_metadata_name = metadata_file.name
 
-    st.info(
-        f"Source: {current_source}\n\n"
-        f"Expression matrix: {current_expression_name}\n\n"
-        f"Metadata file: {current_metadata_name}\n\n"
-        "Status: Ready for preview"
-    )
+    st.success("Input files are ready for preview.")
 
-    st.success(
-        "Input files are ready for preview "
-        f"({st.session_state['raw_preview_load_time']:.2f} seconds)."
-    )
+    selection_columns = st.columns(3)
+    selection_columns[0].caption("Source")
+    selection_columns[0].write(current_source)
+    selection_columns[1].caption("Expression matrix")
+    selection_columns[1].write(current_expression_name)
+    selection_columns[2].caption("Metadata file")
+    selection_columns[2].write(current_metadata_name)
+
+    st.caption("Review the preview below, then run Data Cleaner & QC.")
 
     st.subheader("Input preview")
     st.caption(
-        "Preview shows raw uploaded files before rule-based cleaning and harmonization."
+        "Preview shows the first rows of raw uploaded files before rule-based "
+        "cleaning and harmonization."
     )
 
-    col1, col2 = st.columns(2)
+    expression_tab, metadata_tab = st.tabs(
+        ["Expression matrix", "Metadata"]
+    )
 
-    with col1:
-        st.write("Raw expression matrix")
-        st.dataframe(
-            expression_df.head(),
-            width="stretch",
+    with expression_tab:
+        st.caption("Raw expression matrix. Showing the first 5 rows.")
+        show_table(
+            expression_df.head(5),
+            height=240,
         )
 
-    with col2:
-        st.write("Raw metadata")
-        st.dataframe(
-            metadata_df.head(),
-            width="stretch",
+    with metadata_tab:
+        st.caption("Raw metadata. Showing the first 5 rows.")
+        show_table(
+            metadata_df.head(5),
+            height=220,
         )
 
-    st.header("2. Run Data Cleaner")
+    st.header("2. Run Data Cleaner & QC")
 
     if st.session_state.get("show_input_review", False):
         st.warning(
@@ -634,7 +1191,7 @@ if input_files_available:
             "and then upload the corrected files again."
         )
 
-    if st.button("Run Data Cleaner"):
+    if st.button("Run Data Cleaner & QC"):
         try:
             start_time = time.time()
 
@@ -651,8 +1208,8 @@ if input_files_available:
             st.session_state.pop("analysis_result", None)
 
             st.success(
-                f"Data Cleaner finished successfully in {elapsed_time:.2f} seconds. "
-                f"Final status: {result.final_status}"
+                f"Data Cleaner & QC completed. Final status: {result.final_status}. "
+                "Review warnings, then run the Analysis Engine."
             )
 
         except Exception as error:
@@ -680,150 +1237,134 @@ if "cleaner_result" in st.session_state:
 
     st.header("3. Data Cleaner results")
 
-    with st.expander("Data readiness report", expanded=True):
-        readiness_status = result.data_readiness_report["overall_status"].iloc[0]
+    st.subheader("Readiness summary")
+    show_readiness_summary(result.data_readiness_report)
 
-        if readiness_status == "READY_FOR_ANALYSIS":
-            st.success("Dataset is ready for exploratory analysis.")
-        elif readiness_status == "READY_WITH_WARNINGS":
-            st.warning(
-                "Dataset is ready for exploratory analysis, but warnings should be reviewed."
-            )
-        else:
-            st.error(
-                "Dataset requires review before exploratory analysis."
-            )
-
-            if st.button("Go to Input Review", key="go_to_input_review_after_not_ready"):
-                st.session_state["show_input_review"] = True
-                st.session_state["input_review_source"] = "Data Cleaner"
-                st.session_state["input_review_message"] = (
-                    "Data Cleaner completed, but the dataset is not ready for analysis. "
-                    "Please review the readiness report, metadata columns, sample identifiers "
-                    "and expression matrix structure."
-                )
-                st.rerun()
-
-        st.dataframe(
-            result.data_readiness_report,
-            width="stretch",
-        )
-
-    with st.expander("Data quality report"):
+    with st.expander("QC check details", expanded=False):
         st.caption(
-            "QC statuses summarize detected issues. "
-            "WARNING means that the dataset can still be analyzed, but the issue should be reviewed in the report."
-        )
-        st.dataframe(
-            result.data_quality_report,
-            width="stretch",
+            "QC statuses summarize detected issues. WARNING means that the dataset "
+            "can still be analyzed, but the issue should be reviewed in the report."
         )
 
-        st.markdown("#### QC decision summary")
+        show_qc_decision_summary(result.data_quality_report)
 
-        for _, row in result.data_quality_report.iterrows():
-            status = row["status"]
-            check = row["check"]
-            metric = row["metric"]
-            details = row["details"]
+        with st.expander("Full QC check table", expanded=False):
+            show_table(
+                result.data_quality_report,
+                height=320,
+            )
 
-            if status == "PASS":
-                st.success(f"{check} — PASS")
-            elif status == "WARNING":
-                st.warning(f"{check} — WARNING")
-            elif status == "REQUIRES REVIEW":
-                st.error(f"{check} — REQUIRES REVIEW")
-            else:
-                st.info(f"{check} — {status}")
-
-            st.caption(f"Metric: {metric}")
-            st.write(details)
-
-    with st.expander("Harmonization report"):
+    with st.expander("Harmonization summary"):
         st.caption(
             "This report documents structural changes applied before analysis, "
             "including data orientation and standardized column names."
         )
-        st.dataframe(
+        show_table(
             result.harmonization_report,
-            width="stretch",
+            height=140,
         )
 
-    with st.expander("Audit log"):
+    with st.expander("Audit log of cleaning decisions"):
         st.caption(
             "The audit log records automatic rule-based decisions made by the Data Cleaner, "
-            "including the detected issue, applied rule, decision, status and reason."
+            "including detected issues, applied rules, decisions, statuses and reasons."
         )
-        st.dataframe(
+        st.caption(f"{len(result.audit_log)} audit log entries recorded.")
+
+        st.markdown("#### Decision summary")
+        show_audit_decision_summary(result.audit_log)
+
+        st.markdown("#### Full audit log")
+        show_table(
             result.audit_log,
-            width="stretch",
+            height=320,
+            column_order=[
+                "status",
+                "module",
+                "action",
+                "target",
+                "decision",
+                "rule_applied",
+                "reason",
+                "old_value",
+                "new_value",
+                "timestamp",
+            ],
         )
 
     with st.expander("Cleaned expression matrix preview"):
         st.caption(
             "Preview of the harmonized expression matrix in sample × gene format. "
-            "Only the first rows are displayed."
+            "Showing the first 10 rows and first 10 genes. "
+            "The full cleaned matrix is available for download."
         )
-        st.dataframe(
-            result.cleaned_expression_matrix.head(),
-            width="stretch",
+        show_table(
+            build_expression_preview(result.cleaned_expression_matrix),
+            height=260,
         )
 
     with st.expander("Clean metadata preview"):
         st.caption(
             "Preview of standardized metadata after column harmonization. "
-            "If the input metadata does not contain a dataset column, the value is set to 'unknown'."
+            "Showing the first 10 rows."
         )
-        st.dataframe(
-            result.clean_metadata.head(),
-            width="stretch",
+        show_table(
+            result.clean_metadata.head(10),
+            height=240,
         )
 
-    st.subheader("Download Data Cleaner outputs")
-    st.caption(
-        "Download harmonized data and transparent QC reports generated by the Data Cleaner."
-    )
+    with st.expander("Download Data Cleaner outputs", expanded=False):
+        st.caption(
+            "Download harmonized data and transparent QC reports generated by the Data Cleaner."
+        )
 
-    cleaner_downloads = {
-        "clean_expression_matrix.csv": (
-            "Clean expression matrix",
-            result.cleaned_expression_matrix,
-        ),
-        "clean_metadata.csv": (
-            "Clean metadata",
-            result.clean_metadata,
-        ),
-        "audit_log.csv": (
-            "Audit log",
-            result.audit_log,
-        ),
-        "harmonization_report.csv": (
-            "Harmonization report",
-            result.harmonization_report,
-        ),
-        "data_quality_report.csv": (
-            "Data quality report",
-            result.data_quality_report,
-        ),
-        "data_readiness_report.csv": (
-            "Data readiness report",
-            result.data_readiness_report,
-        ),
-    }
-
-    cleaner_download_columns = st.columns(3)
-
-    for index, (file_name, (button_label, dataframe)) in enumerate(
-        cleaner_downloads.items()
-    ):
-        with cleaner_download_columns[index % 3]:
-            st.download_button(
-                label=button_label,
-                data=dataframe.to_csv(index=False).encode("utf-8"),
-                file_name=file_name,
-                mime="text/csv",
-                key=f"download_cleaner_{file_name}",
+        st.markdown("**Cleaned data**")
+        cleaned_data_columns = st.columns(2)
+        with cleaned_data_columns[0]:
+            show_dataframe_download_button(
+                file_name="clean_expression_matrix.csv",
+                label="Download clean_expression_matrix.csv",
+                dataframe=result.cleaned_expression_matrix,
+                key="download_cleaner_clean_expression_matrix.csv",
             )
+        with cleaned_data_columns[1]:
+            show_dataframe_download_button(
+                file_name="clean_metadata.csv",
+                label="Download clean_metadata.csv",
+                dataframe=result.clean_metadata,
+                key="download_cleaner_clean_metadata.csv",
+            )
+
+        st.markdown("**QC reports**")
+        qc_report_downloads = [
+            ("audit_log.csv", "Download audit_log.csv", result.audit_log),
+            (
+                "harmonization_report.csv",
+                "Download harmonization_report.csv",
+                result.harmonization_report,
+            ),
+            (
+                "data_quality_report.csv",
+                "Download data_quality_report.csv",
+                result.data_quality_report,
+            ),
+            (
+                "data_readiness_report.csv",
+                "Download data_readiness_report.csv",
+                result.data_readiness_report,
+            ),
+        ]
+
+        qc_report_columns = st.columns(2)
+
+        for index, (file_name, label, dataframe) in enumerate(qc_report_downloads):
+            with qc_report_columns[index % 2]:
+                show_dataframe_download_button(
+                    file_name=file_name,
+                    label=label,
+                    dataframe=dataframe,
+                    key=f"download_cleaner_{file_name}",
+                )
 
 if "cleaner_result" in st.session_state:
 
@@ -862,7 +1403,13 @@ if "cleaner_result" in st.session_state:
             }
         )
 
-    if st.button("Run Analysis Engine", disabled=analysis_blocked):
+    analysis_button_label = (
+        "Re-run Analysis Engine"
+        if "analysis_result" in st.session_state
+        else "Run Analysis Engine"
+    )
+
+    if st.button(analysis_button_label, disabled=analysis_blocked):
 
         try:
             start_time = time.time()
@@ -881,7 +1428,8 @@ if "cleaner_result" in st.session_state:
             st.session_state["analysis_result"] = analysis_result
 
             st.success(
-                f"Analysis Engine finished successfully in {elapsed_time:.2f} seconds."
+                "Analysis Engine completed. Review exploratory plots below, "
+                "then generate the final PDF report."
             )
 
         except Exception as error:
@@ -896,6 +1444,10 @@ if "analysis_result" in st.session_state:
     st.header("5. Analysis Results")
     st.success(
         "Exploratory transcriptomic analysis results are available below."
+    )
+    st.info(
+        "These outputs are exploratory and do not represent formal differential "
+        "expression analysis."
     )
     (
         overview_tab,
@@ -922,10 +1474,45 @@ if "analysis_result" in st.session_state:
         st.caption(
             "Summary of the cleaned dataset used by the Analysis Engine."
         )
-        st.dataframe(
-            analysis.dataset_overview.summary_dataframe,
-            width="stretch",
+
+        overview_df = analysis.dataset_overview.summary_dataframe
+
+        overview_columns = st.columns(3)
+        overview_columns[0].metric(
+            "Samples",
+            get_metric_value(overview_df, "sample_count", integer=True),
         )
+        overview_columns[1].metric(
+            "Genes",
+            get_metric_value(overview_df, "gene_count", integer=True),
+        )
+        overview_columns[2].metric(
+            "Groups",
+            get_metric_value(overview_df, "group_count", integer=True),
+        )
+
+        expression_columns = st.columns(3)
+        expression_columns[0].metric(
+            "Mean expression",
+            get_metric_value(overview_df, "mean_expression"),
+        )
+        expression_columns[1].metric(
+            "Median expression",
+            get_metric_value(overview_df, "median_expression"),
+        )
+        expression_columns[2].metric(
+            "Expression range",
+            (
+                f"{get_metric_value(overview_df, 'min_expression')} – "
+                f"{get_metric_value(overview_df, 'max_expression')}"
+            ),
+        )
+
+        with st.expander("Show dataset overview table", expanded=False):
+            show_table(
+                prepare_overview_display_dataframe(overview_df),
+                height=220,
+            )
 
     with class_tab:
         st.subheader("Class Distribution")
@@ -933,9 +1520,12 @@ if "analysis_result" in st.session_state:
             "Shows the number and percentage of samples in each biological group. "
             "This helps assess class balance before interpreting PCA and clustering."
         )
-        st.image(
+        show_centered_plot(
             analysis.class_distribution.plot_path,
-            width="stretch",
+            size="medium",
+        )
+        st.caption(
+            "Normal and Tumor groups have equal sample counts, while Mucosa has fewer samples."
         )
 
     with pca_tab:
@@ -945,20 +1535,24 @@ if "analysis_result" in st.session_state:
             "Points represent samples and colors represent metadata groups. "
             "This is an exploratory visualization, not a formal differential expression analysis."
         )
-        st.image(
+        show_centered_plot(
             analysis.pca_analysis.plot_path,
-            width="stretch",
+            size="medium",
+        )
+        st.caption(
+            "Visible separation patterns are exploratory and require further validation."
         )
 
     with variable_genes_tab:
         st.subheader("Top Variable Genes")
         st.caption(
-            "Shows the top 50 genes ranked by expression variance across samples. "
-            "This ranking is exploratory and is used for visualization, not formal differential expression analysis."
+            "Shows the top 20 genes by variance for readability. Full top 50 and "
+            "top 100 rankings are available as downloadable CSV files. This ranking "
+            "is exploratory and is not formal differential expression analysis."
         )
-        st.image(
+        show_centered_plot(
             analysis.variable_gene_analysis.barplot_path,
-            width="stretch",
+            size="medium",
         )
 
     with heatmap_tab:
@@ -967,9 +1561,9 @@ if "analysis_result" in st.session_state:
             "Heatmap of the top 50 most variable genes across samples. "
             "For large datasets, sample labels are hidden to keep the visualization readable."
         )
-        st.image(
+        show_centered_plot(
             analysis.heatmap.plot_path,
-            width="stretch",
+            size="heatmap",
         )
 
     with clustering_tab:
@@ -978,9 +1572,9 @@ if "analysis_result" in st.session_state:
             "Hierarchical clustering visualizes similarity between samples based on the cleaned expression matrix. "
             "For large datasets, sample labels are hidden to avoid an unreadable plot."
         )
-        st.image(
+        show_centered_plot(
             analysis.sample_clustering.plot_path,
-            width="stretch",
+            size="wide",
         )
 
     with summary_tab:
@@ -988,53 +1582,61 @@ if "analysis_result" in st.session_state:
         st.caption(
             "Concise summary of exploratory analysis outputs generated from the cleaned dataset."
         )
-        st.dataframe(
+        show_table(
             analysis.analysis_summary.summary_dataframe,
-            width="stretch",
+            height=260,
         )
 
-    st.subheader("Download Analysis Engine outputs")
-    st.caption(
-        "Download exploratory analysis tables and visualizations generated from the cleaned dataset."
-    )
+    with st.expander("Download Analysis Engine outputs", expanded=False):
+        st.caption(
+            "Download exploratory analysis tables and visualizations generated from the cleaned dataset."
+        )
 
-    analysis_output_directory = Path("outputs/streamlit_demo")
-    analysis_download_files = {
-        "top_50_variable_genes.csv": "Top 50 variable genes",
-        "top_100_variable_genes.csv": "Top 100 variable genes",
-        "analysis_summary.csv": "Analysis summary CSV",
-        "analysis_summary.md": "Analysis summary MD",
-        "class_distribution.png": "Class distribution plot",
-        "pca_plot.png": "PCA plot",
-        "top_variable_genes_barplot.png": "Variable genes plot",
-        "heatmap_top50_variable_genes.png": "Heatmap",
-        "sample_clustering_dendrogram.png": "Sample clustering",
-    }
+        analysis_output_directory = Path("outputs/streamlit_demo")
 
-    analysis_download_columns = st.columns(3)
+        st.markdown("**Tables and summaries**")
+        table_downloads = [
+            ("top_50_variable_genes.csv", "Download top_50_variable_genes.csv"),
+            ("top_100_variable_genes.csv", "Download top_100_variable_genes.csv"),
+            ("analysis_summary.csv", "Download analysis_summary.csv"),
+            ("analysis_summary.md", "Download analysis_summary.md"),
+        ]
 
-    for index, (file_name, button_label) in enumerate(
-        analysis_download_files.items()
-    ):
-        file_path = analysis_output_directory / file_name
+        table_download_columns = st.columns(2)
 
-        if not file_path.exists():
-            continue
-
-        if file_path.suffix == ".png":
-            mime_type = "image/png"
-        elif file_path.suffix == ".md":
-            mime_type = "text/markdown"
-        else:
-            mime_type = "text/csv"
-
-        with analysis_download_columns[index % 3]:
-            with open(file_path, "rb") as output_file:
-                st.download_button(
+        for index, (file_name, button_label) in enumerate(table_downloads):
+            with table_download_columns[index % 2]:
+                show_file_download_button(
+                    file_path=analysis_output_directory / file_name,
                     label=button_label,
-                    data=output_file,
-                    file_name=file_name,
-                    mime=mime_type,
+                    key=f"download_analysis_{file_name}",
+                )
+
+        st.markdown("**Plots**")
+        plot_downloads = [
+            ("class_distribution.png", "Download class_distribution.png"),
+            ("pca_plot.png", "Download pca_plot.png"),
+            (
+                "top_variable_genes_barplot.png",
+                "Download top_variable_genes_barplot.png",
+            ),
+            (
+                "heatmap_top50_variable_genes.png",
+                "Download heatmap_top50_variable_genes.png",
+            ),
+            (
+                "sample_clustering_dendrogram.png",
+                "Download sample_clustering_dendrogram.png",
+            ),
+        ]
+
+        plot_download_columns = st.columns(2)
+
+        for index, (file_name, button_label) in enumerate(plot_downloads):
+            with plot_download_columns[index % 2]:
+                show_file_download_button(
+                    file_path=analysis_output_directory / file_name,
+                    label=button_label,
                     key=f"download_analysis_{file_name}",
                 )
 
@@ -1087,9 +1689,7 @@ if "analysis_result" in st.session_state:
 
             elapsed_time = time.time() - start_time
 
-            st.success(
-                f"Final PDF report generated successfully in {elapsed_time:.2f} seconds."
-            )
+            st.success("Final PDF report generated successfully.")
 
             with open(report_result.pdf_path, "rb") as pdf_file:
                 st.download_button(
