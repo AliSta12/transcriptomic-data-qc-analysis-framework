@@ -4,14 +4,14 @@ import pandas as pd
 
 
 INPUT_DIR = Path("data/processed/geo_gse44076")
-OUTPUT_DIR = Path("data/processed/geo_gse44076_messy_analysis_ready")
+OUTPUT_DIR = Path("data/demo/geo_gse44076_messy")
 
 EXPRESSION_INPUT = INPUT_DIR / "expression_matrix.tsv"
 METADATA_INPUT = INPUT_DIR / "metadata.tsv"
 
 EXPRESSION_OUTPUT = OUTPUT_DIR / "expression_matrix.tsv"
 METADATA_OUTPUT = OUTPUT_DIR / "metadata.tsv"
-README_OUTPUT = OUTPUT_DIR / "README_messy_analysis_ready_dataset.md"
+README_OUTPUT = OUTPUT_DIR / "README_geo_gse44076_messy_dataset.md"
 
 
 def main() -> None:
@@ -32,7 +32,6 @@ def main() -> None:
     gene_low_missing = gene_columns[1]
     gene_high_missing = gene_columns[2]
     gene_constant = gene_columns[3]
-    gene_low_variance = gene_columns[4]
 
     # 1. Non-numeric expression value.
     # This should be converted to missing and then imputed because missingness is <=5%.
@@ -50,12 +49,7 @@ def main() -> None:
     # Expected behavior: remove constant gene.
     expression[gene_constant] = "5.0"
 
-    # 5. Low variance gene.
-    # Expected behavior: remove low-variance gene if below configured threshold.
-    expression[gene_low_variance] = "5.0"
-    expression.loc[0, gene_low_variance] = "5.001"
-
-    # 6. Class instead of group, to validate metadata harmonization.
+    # 5. Class instead of group, to validate metadata harmonization.
     metadata = metadata.rename(columns={"group": "Class"})
 
     expression.to_csv(EXPRESSION_OUTPUT, sep="\t", index=False)
@@ -83,7 +77,6 @@ so the cleaned output can proceed to the Analysis Engine.
 | Low missingness gene | {gene_low_missing} | Impute missing values using gene median |
 | High missingness gene | {gene_high_missing} | Remove gene from analytical dataset |
 | Constant gene | {gene_constant} | Remove gene because all expression values are identical |
-| Low variance gene | {gene_low_variance} | Remove gene because variance is below configured threshold |
 | Metadata column Class instead of group | Class | Harmonize Class to group |
 
 ## Purpose

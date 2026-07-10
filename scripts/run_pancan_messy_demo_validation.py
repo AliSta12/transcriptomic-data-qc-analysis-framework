@@ -6,10 +6,10 @@ from src.analysis_engine.analysis_engine_pipeline import AnalysisEnginePipeline
 from src.data_cleaner.data_cleaner_pipeline import DataCleanerPipeline
 
 
-EXPRESSION_PATH = Path("data/demo/geo_gse44076_messy/expression_matrix.tsv")
-METADATA_PATH = Path("data/demo/geo_gse44076_messy/metadata.tsv")
+EXPRESSION_PATH = Path("data/demo/pancan_messy/expression_matrix.tsv")
+METADATA_PATH = Path("data/demo/pancan_messy/metadata.tsv")
 
-OUTPUT_DIR = Path("outputs/validation/geo_gse44076_messy_demo")
+OUTPUT_DIR = Path("outputs/validation/pancan_messy_demo")
 CLEANER_OUTPUT_DIR = OUTPUT_DIR / "data_cleaner"
 ANALYSIS_OUTPUT_DIR = OUTPUT_DIR / "analysis_engine"
 
